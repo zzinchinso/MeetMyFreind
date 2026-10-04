@@ -20,9 +20,9 @@
 const SCHEMA_VERSION = 2;
 const SHEET_NAME = '신청';
 // What the page sends for one application.
-const FIELDS = ['성별','연령대','유입경로','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','이상형','제외조건','중요조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
+const FIELDS = ['성별','연령대','유입경로','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','제외조건','중요조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
 // Column order of a newly created tab: what the operator reads first, internal bookkeeping last.
-const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','이상형','제외조건','중요조건','연봉','자산','유입경로','추천인','사진','사진폴더','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
+const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','제외조건','중요조건','연봉','자산','유입경로','추천인','사진','사진폴더','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
 // Columns of the earlier satisfaction survey; anything else an older version added to that tab is ours to tidy.
 const SURVEY_HEADERS = ['제출시각','성별','연령대','유입경로','만족도','유용한점','추천의향','좋았던점','개선점'];
 const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입력값을 확인하거나 운영자에게 문의해주세요.';
@@ -200,7 +200,7 @@ function doPost(e){
  const lock=LockService.getScriptLock();
  try{
   const data=JSON.parse(e.postData.contents);
-  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true});
+  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true,selfIntroduction:true,partnerCondition:true});
   if(data.website)throw Error('요청을 처리할 수 없습니다.');
   lock.waitLock(30000);
   const props=PropertiesService.getScriptProperties();
@@ -229,8 +229,10 @@ function doPost(e){
   if(!['submit','update'].includes(data._action))throw Error('지원하지 않는 요청입니다.');
   if(row&&data._action==='submit')return json_({ok:true,schemaVersion:SCHEMA_VERSION,id,token});
   if(data.프로필소개동의!=null&&!['응, 사진 없이 소개해줘','아니, 소개하기 전에 나한테 먼저 물어봐줘','응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘'].includes(data.프로필소개동의))throw reject_('소개 진행 방식을 확인해주세요.');
-  const mandatory=['성별','주선자','이름','출생연도','키','생활권','직업','학교','취미','음주','흡연','이상형','제외조건','중요조건','유입경로','연락처'];
-  if(mandatory.some(k=>!String(data[k]||'').trim())||data.개인정보동의!==true)throw reject_('필수 입력 및 개인정보 동의를 확인해주세요.');
+  const mandatory=['성별','주선자','이름','출생연도','키','생활권','직업','학교','취미','음주','흡연','이상형','유입경로','연락처'];
+  const said=k=>String(data[k]||'').trim();
+  // Partner conditions: the current page sends one answer (상대조건); a page cached from before sends the two old ones.
+  if(mandatory.some(k=>!said(k))||!(said('상대조건')||(said('제외조건')&&said('중요조건')))||data.개인정보동의!==true)throw reject_('필수 입력 및 개인정보 동의를 확인해주세요.');
   if(!['여성','남성'].includes(data.성별)||!['f','m'].includes(data.주선자))throw reject_('선택값을 확인해주세요.');
   if(data.이메일!=null&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.이메일).trim()))throw reject_('이메일 주소를 확인해주세요.');
   const phone=String(data.연락처).replace(/[-\s]/g,'');
@@ -255,7 +257,7 @@ function doPost(e){
    blobs.forEach((blob,i)=>{const file=folder.createFile(blob);created.push({id:file.getId(),name:String(data.사진[i].name||'사진').slice(0,200)});private_(file);});
    const values=previous.map(text_);
    const put=(k,v)=>{const at=headers.indexOf(k);if(at>=0)values[at]=v;};
-   FIELDS.forEach(k=>{if(['프로필소개동의','프로필소개동의일시','초대코드','이메일'].includes(k)&&data[k]==null)return;put(k,safe_(data[k]));});
+   FIELDS.forEach(k=>{if(['프로필소개동의','프로필소개동의일시','초대코드','이메일','자기소개','상대조건','제외조건','중요조건'].includes(k)&&data[k]==null)return;put(k,safe_(data[k]));});
    put('연락처',phone);if(data.이메일!=null)put('이메일',safe_(String(data.이메일).trim()));
    if(!row)put('제출시각',stamp_());
    put('신청ID',id);put('사진',JSON.stringify(created));put('사진폴더',folderUrl_(folder));put('심사상태','pending');put('수정일시',new Date().toISOString());put('접수토큰해시',hash_(token));
