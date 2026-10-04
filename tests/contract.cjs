@@ -5,18 +5,24 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
 const {fakeSheet,environment}=require('./apps-script-fakes.cjs');
 const root=path.join(__dirname,'..'),app=fs.readFileSync(path.join(root,'app.js'),'utf8'),server=fs.readFileSync(path.join(root,'server/Code.gs'),'utf8');
-// Sent on every submit for compatibility with the first survey sheet; always empty and deliberately not stored.
+// Still sent by the page but deliberately not stored: five always-empty leftovers of the first survey sheet,
+// the unasked 유입경로 (always empty), and 연령대, which the page derives from 출생연도.
 const SURVEY_BLANKS=['만족도','유용한점','추천의향','좋았던점','개선점'];
+const NOT_STORED=[...SURVEY_BLANKS,'유입경로','연령대'];
+// Chosen before the conversation starts (start button, host list), so they never appear as chat questions.
+const CHOSEN_UP_FRONT=['성별','주선자'];
 const CONTROL=['_action','_token','신청ID','사진'];
 // The 신청 tab as an earlier server version created it (32 columns) with one application: the upgrade path in production.
 const EARLIER_TAB=['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','이상형','제외조건','중요조건','연봉','자산','유입경로','추천인','사진','사진폴더','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
-const earlierRow=EARLIER_TAB.map(h=>({제출시각:'2026-10-04 19:20:49',심사상태:'pending',이름:'이전신청',신청ID:'aaaaaaaa-0000-4000-8000-000000000001',사진:'[]',제외조건:'흡연',중요조건:'연락',유입경로:'친구 추천'})[h]??'');
+const earlierRow=EARLIER_TAB.map(h=>({제출시각:'2026-10-04 19:20:49',심사상태:'pending',이름:'이전신청',연령대:'20대',신청ID:'aaaaaaaa-0000-4000-8000-000000000001',사진:'[]',제외조건:'흡연',중요조건:'연락'})[h]??'');
 const SAMPLE={이름:'홍길동',출생연도:'1997',키:'170',생활권:'강남 거주 분당 출퇴근',직업:'○○에서 PM으로 일해',학교:'○○대 통계학과',MBTI:'ENFP',취미:'러닝, 카페 가기',자기소개:'잘 웃고 리액션이 좋아',이상형:'대화가 잘 통하는 사람',상대조건:'비흡연, 연락이 잘 되는 사람',자산:'1억 정도',같은회사제외:'○○회사, ○○대학교',추천인:'친구 김○○',초대코드:'FRIEND35',연락처:'010-1234-5678',이메일:'hello@example.com'};
 const png='data:image/png;base64,'+Buffer.from('fake-png').toString('base64');
 
 async function apply({answerOptional,existingTab}){
  const sheets=existingTab?[fakeSheet('신청',[EARLIER_TAB,earlierRow],32),fakeSheet('응답',[['제출시각','성별']])]:[fakeSheet('시트1',[])];
  const env=environment({sheets}),elements=new Map(),store=new Map(),sent=[];
+ // In production the operator runs setup() after pasting a new script; it is what retires unused columns.
+ if(existingTab)env.setup();
  const doc={body:{dataset:{}},createElement(){return {setAttribute(){},textContent:''};},getElementById(id){if(!elements.has(id))elements.set(id,{style:{},appendChild(){},focus(){},innerHTML:'',textContent:''});return elements.get(id);},querySelectorAll(){return [];}};
  // No ?demo=1: the page really submits, and fetch hands the request body to the server's doPost.
  const ctx=vm.createContext({document:doc,location:{search:''},URLSearchParams,sessionStorage:{getItem:k=>store.get(k)??null,setItem:(k,v)=>{store.set(k,String(v));},removeItem:k=>{store.delete(k);}},crypto:require('crypto').webcrypto,window:{scrollTo(){}},setTimeout,clearTimeout,AbortController,console,
@@ -57,7 +63,13 @@ async function apply({answerOptional,existingTab}){
   assert.equal(r.rows,scenario.rows,'exactly one row is added'+where);
   // 2. Everything the page sends has a column, apart from the always-empty survey leftovers.
   const sentKeys=Object.keys(r.submit).filter(key=>!CONTROL.includes(key));
-  assert.deepEqual(sentKeys.filter(key=>!(key in r.stored)).sort(),[...SURVEY_BLANKS].sort(),'answers without a column'+where);
+  assert.deepEqual(sentKeys.filter(key=>!(key in r.stored)).sort(),[...NOT_STORED].sort(),'answers without a column'+where);
+  // 2b. One column per question: every column that is not service bookkeeping answers exactly one question the page asks.
+  const system=eval(server.match(/const SYSTEM_COLUMNS = (\[[^\]]*\]);/)[1]);
+  const questions=[...CHOSEN_UP_FRONT,...r.asked.map(a=>a.key==='사진'?'사진폴더':a.key)];
+  assert.equal(questions.length,new Set(questions).size,'each question is asked once');
+  assert.deepEqual(r.headers.filter(h=>!system.includes(h)).sort(),[...questions].sort(),'sheet columns and page questions must match one to one'+where);
+  for(const h of system)assert(r.headers.includes(h),'bookkeeping column '+h+' is missing'+where);
   for(const key of SURVEY_BLANKS)assert.equal(r.submit[key],'','survey leftover '+key+' must stay empty');
   // 3. The sheet holds exactly what was sent (the phone number is stored as digits only).
   for(const key of sentKeys.filter(key=>key in r.stored))assert.equal(String(r.stored[key]),String(key==='연락처'?String(r.submit[key]).replace(/[-\s]/g,''):r.submit[key]),'stored value differs for '+key+where);
@@ -67,7 +79,7 @@ async function apply({answerOptional,existingTab}){
   const folders=r.env.peopleFolders();assert.equal(folders.length,1);assert.equal(folders[0].getName(),'홍길동_5678');assert.equal(r.env.photosIn(folders[0]).length,3);assert(r.stored.사진폴더.endsWith(folders[0].getId()));
   // 6. Bookkeeping the operator relies on.
   assert.equal(r.stored.심사상태,'pending');assert(r.stored.제출시각&&r.stored.신청ID&&r.stored.접수토큰해시&&r.stored.개인정보동의일시&&r.stored.프로필소개동의일시);
-  if(scenario.existingTab){const at=k=>r.headers.indexOf(k);assert.equal(r.headers.length,new Set(r.headers).size,'no duplicated column titles');for(const [added,neighbour] of [['이메일','연락처'],['자기소개','종교'],['상대조건','이상형'],['초대코드','추천인'],['프로필소개동의일시','프로필소개동의']])assert.equal(at(added),at(neighbour)+1,added+' is inserted right after '+neighbour);assert.equal(r.env.tab('신청')._data[1][at('이름')],'이전신청','the earlier application keeps its values under the same titles');assert.equal(r.env.tab('신청')._data[1][at('중요조건')],'연락');}
+  if(scenario.existingTab){const at=k=>r.headers.indexOf(k);assert.equal(r.headers.length,new Set(r.headers).size,'no duplicated column titles');for(const [added,neighbour] of [['이메일','연락처'],['자기소개','종교'],['상대조건','이상형'],['초대코드','추천인'],['프로필소개동의일시','프로필소개동의']])assert.equal(at(added),at(neighbour)+1,added+' is inserted right after '+neighbour);assert.equal(r.env.tab('신청')._data[1][at('이름')],'이전신청','the earlier application keeps its values under the same titles');assert.equal(r.env.tab('신청')._data[1][at('상대조건')],'흡연 / 연락','its two earlier partner answers now live in the single column');}
  }
- console.log('PASS: the page\'s full conversation is accepted by the server and every answer lands in its own column — all answered, all optional skipped, and on a brand-new spreadsheet; new columns join their neighbours on the existing tab.');
+ console.log('PASS: the page\'s full conversation is accepted by the server; sheet columns and page questions match one to one (plus the service\'s own bookkeeping columns) — all answered, all optional skipped, and on a brand-new spreadsheet; an existing tab is brought to the same shape.');
 })().catch(e=>{console.error(e);process.exit(1);});

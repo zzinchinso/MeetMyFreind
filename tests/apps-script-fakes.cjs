@@ -20,6 +20,7 @@ function fakeSheet(name,rows,maxColumns=26,maxRows=1000){
   insertColumnAfter(after){assert(after>=1&&after<=maxColumns);maxColumns+=1;data.forEach(r=>{if(r.length>after)r.splice(after,0,'');});},
   insertRowsAfter(after,count){assert.equal(after,maxRows);maxRows+=count;},
   deleteRow(row){assert(row>=1&&row<=data.length);data.splice(row-1,1);},
+  deleteColumn(col){assert(col>=1&&col<=maxColumns);maxColumns-=1;data.forEach(r=>{if(r.length>=col)r.splice(col-1,1);});},
   setFrozenRows(count){sheet._frozen=count;},
   getRange(row,col,numRows=1,numCols=1){
    const check=()=>{if(row<1||col<1||row+numRows-1>maxRows||col+numCols-1>maxColumns)throw Error('The coordinates of the range are outside the dimensions of the sheet.');};
