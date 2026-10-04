@@ -14,15 +14,15 @@ try{
  // Both hosts accept either a detailed exclusion or the single no-preference shortcut.
  for(const host of ['f','m']){
   await page.goto(base+'/?demo=1');
-  await page.evaluate(host=>{submitted=false;editing=false;view='form';persona=host;step=4;questionIndex=5;answers={};history=[];render();topScreen()},host);
+  await page.evaluate(host=>{submitted=false;editing=false;view='form';persona=host;step=12;questionIndex=0;answers={};history=[];render();topScreen()},host);
   assert.equal(await page.locator('#replyTools button[data-value]').count(),1);
   assert.equal(await page.locator('#replyTools button[data-value]').innerText(),'상관없어');
   assert((await page.locator('#activeTurn').innerText()).includes('회사명이나 학교명은 정확히 적어줘.'));
   assert(await page.locator('#next').isDisabled());
   await page.locator('.chat-entry').fill(values.같은회사제외);await page.locator('#next').click();
-  assert.equal(await page.evaluate(()=>questionIndex),6);assert.equal(await page.evaluate(()=>answers.같은회사제외),values.같은회사제외);
+  assert.equal(await page.evaluate(()=>questionIndex),1);assert.equal(await page.evaluate(()=>answers.같은회사제외),values.같은회사제외);
   await page.locator('#back').click();await page.getByRole('button',{name:'상관없어',exact:true}).click();
-  assert.equal(await page.evaluate(()=>questionIndex),6);assert.equal(await page.evaluate(()=>answers.같은회사제외),'상관없어');
+  assert.equal(await page.evaluate(()=>questionIndex),1);assert.equal(await page.evaluate(()=>answers.같은회사제외),'상관없어');
   await page.locator('#back').click();await page.locator('.chat-entry').fill('다른 회사');
   assert.equal(await page.getByRole('button',{name:'상관없어',exact:true}).getAttribute('aria-pressed'),'false');
  }
