@@ -110,4 +110,6 @@
   --intro-art-min: 64px;
   /* D-02: 상세 프로필은 목록48px보다 인물 식별 강조; 모바일 프레임 유지 */
   --host-avatar: 80px;
+  /* D-02: 헤더 아래 숫자 없이 전체 신청 진행률을 얇게 표시 */
+  --progress-height: 3px;
 }
