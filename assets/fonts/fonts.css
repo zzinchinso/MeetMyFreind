@@ -1,0 +1,4 @@
+/* D-14: NanumSquareRound Regular/Bold from NAVER official webfont distribution.
+   https://hangeul.pstatic.net/hangeul_static/css/nanum-square-round.css */
+@font-face{font-family:"NanumSquareRound";font-style:normal;font-weight:400;font-display:swap;src:url("https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareRound/NanumSquareRoundR.woff2") format("woff2")}
+@font-face{font-family:"NanumSquareRound";font-style:normal;font-weight:700;font-display:swap;src:url("https://hangeul.pstatic.net/hangeul_static/webfont/NanumSquareRound/NanumSquareRoundB.woff2") format("woff2")}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="다민 캐릭터">
+  <rect width="96" height="96" fill="#FEE0E2"/>
+  <g transform="rotate(-9 34 28)"><ellipse cx="34" cy="28" rx="9.5" ry="21" fill="#E8798D"/><ellipse cx="34" cy="30" rx="4.5" ry="14" fill="#FFF4E6"/></g>
+  <g transform="rotate(9 62 28)"><ellipse cx="62" cy="28" rx="9.5" ry="21" fill="#E8798D"/><ellipse cx="62" cy="30" rx="4.5" ry="14" fill="#FFF4E6"/></g>
+  <ellipse cx="48" cy="62" rx="31" ry="25" fill="#E8798D"/>
+  <ellipse cx="48" cy="65" rx="24.5" ry="19" fill="#FFF4E6"/>
+  <circle cx="39" cy="62" r="2.9" fill="#2B2730"/>
+  <circle cx="57" cy="62" r="2.9" fill="#2B2730"/>
+  <ellipse cx="31.5" cy="69" rx="4.2" ry="2.7" fill="#F7B4BF"/>
+  <ellipse cx="64.5" cy="69" rx="4.2" ry="2.7" fill="#F7B4BF"/>
+  <path d="M42 69q6 6 12 0" fill="none" stroke="#2B2730" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

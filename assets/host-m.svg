@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="정진 캐릭터">
+  <rect width="96" height="96" fill="#F1ECFF"/>
+  <circle cx="23" cy="33" r="11.5" fill="#8C7AE0"/>
+  <circle cx="73" cy="33" r="11.5" fill="#8C7AE0"/>
+  <circle cx="23" cy="33" r="5.5" fill="#FFF4E6"/>
+  <circle cx="73" cy="33" r="5.5" fill="#FFF4E6"/>
+  <ellipse cx="48" cy="56" rx="32" ry="28" fill="#8C7AE0"/>
+  <ellipse cx="48" cy="62" rx="24" ry="20" fill="#FFF4E6"/>
+  <circle cx="37.5" cy="56" r="8" fill="#FFF4E6" stroke="#2B2730" stroke-width="2.3"/>
+  <circle cx="58.5" cy="56" r="8" fill="#FFF4E6" stroke="#2B2730" stroke-width="2.3"/>
+  <path d="M45.5 56h5" fill="none" stroke="#2B2730" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="37.5" cy="56" r="2.7" fill="#2B2730"/>
+  <circle cx="58.5" cy="56" r="2.7" fill="#2B2730"/>
+  <ellipse cx="48" cy="67" rx="3.2" ry="2.2" fill="#2B2730"/>
+  <path d="M42.5 72q5.5 5 11 0" fill="none" stroke="#2B2730" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
