@@ -106,7 +106,7 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
 { // health check and capability probe store nothing and do not create the tab
  const env=environment({sheets:[surveyTabWithApplication()],properties:{RECEIPT_SECRET:SECRET}});
  assert.deepEqual(env.get(),{ok:true,schemaVersion:2,service:'신청 접수 서버',sheet:'신청',photoFolders:true});
- assert.deepEqual(env.post({_action:'capabilities'}),{ok:true,schemaVersion:2});
+ assert.deepEqual(env.post({_action:'capabilities'}),{ok:true,schemaVersion:2,profileIntroductionConsent:true,emailCollection:true});
  assert.equal(env.sheets.length,1);assert.equal(env.tab('응답')._data.length,6);assert.equal(env.folders.size,0);
  console.log('PASS: doGet and capabilities answer schemaVersion 2 without creating the tab, a folder, or touching the sheet.');
 }
@@ -116,10 +116,10 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
  assert.equal(status.ok,true,JSON.stringify(status));assert.equal(status.answers.이름,'김테스');assert.equal(status.answers.연락처,'01099998888');assert.equal(status.status,'pending');
  assert.deepEqual(env.sheets.map(s=>s.getName()),['신청','응답'],'new tab is placed first');
  const tab=env.tab('신청'),old=env.tab('응답'),cell=cellOf(tab);
- assert.deepEqual(tab._data[0],env.columns);assert.equal(env.columns.length,32);assert.deepEqual(env.columns.slice(0,8),['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처']);
+ assert.deepEqual(tab._data[0],env.columns);assert.equal(env.columns.length,36);assert.deepEqual(env.columns.slice(0,8),['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처']);
  assert.equal(env.columns.indexOf('사진폴더'),env.columns.indexOf('사진')+1);
  for(const unused of ['만족도','유용한점','추천의향','좋았던점','개선점'])assert(!tab._data[0].includes(unused));
- assert(tab.getMaxColumns()>=32);assert.equal(tab._frozen,1);
+ assert(tab.getMaxColumns()>=36);assert.equal(tab._frozen,1);
  assert.equal(tab._data.length,2);assert.equal(cell(2,'이름'),'김테스');assert.equal(cell(2,'제출시각'),'2026-10-04 19:20:49');assert.equal(cell(2,'신청ID'),OLD_ID);assert.equal(tab._formats.get(2),'@');
  assert.equal(old._data.length,5,'only the application row left the survey tab');assert.deepEqual(old._data[0].filter(Boolean),SURVEY,'survey tab is back to its own nine titles');assert.equal(old._data[1][7],'좋았어');assert(old._data[2][0] instanceof Date);
 
@@ -149,7 +149,7 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
  people=env.peopleFolders();assert.equal(people.length,2);assert.deepEqual(people.map(f=>f.getName()),['홍길순_5678','홍길순_5678']);assert.notEqual(cell(4,'사진폴더'),cell(3,'사진폴더'));
  people.forEach(folder=>assert.equal(env.photosIn(folder).length,3));
  assert.equal(cell(2,'이름'),'김테스','the moved application is untouched by later saves');
- console.log('PASS: dedicated 신청 tab with 32 operator-ordered columns; earlier application moves and stays reachable; photos go to a per-person folder (이름_뒤4자리) linked from 사진폴더; edits rename and reuse the folder; same-named applicants never share one.');
+ console.log('PASS: dedicated 신청 tab with 36 operator-ordered columns; earlier application moves and stays reachable; photos go to a per-person folder (이름_뒤4자리) linked from 사진폴더; edits rename and reuse the folder; same-named applicants never share one.');
 }
 { // upgrade from the second version: 신청 tab exists without 사진폴더 and photos sit loose in the root folder
  const head=TAB_V2,tab=fakeSheet('신청',[head,lineFor(head)(OLD)],31);
@@ -158,9 +158,9 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
  const stored=['a.jpeg','b.jpeg','c.jpeg'].map((name,i)=>({id:root.createFile(env.newBlob([1,2,3],'image/jpeg',OLD_ID+'-'+(i+1))).getId(),name}));
  tab._data[1][head.indexOf('사진')]=JSON.stringify(stored);
  const message=env.setup();
- assert(message.includes('신청자별 폴더로 정리한 신청 1건'),message);assert(message.includes('열 32개'));
+ assert(message.includes('신청자별 폴더로 정리한 신청 1건'),message);assert(message.includes('열 36개'));
  const cell=cellOf(tab);
- assert.equal(tab._data[0].indexOf('사진폴더'),tab._data[0].indexOf('사진')+1,'new column sits right after 사진');assert.equal(tab._data[0].length,32);
+ assert.equal(tab._data[0].indexOf('사진폴더'),tab._data[0].indexOf('사진')+1,'new column sits right after 사진');assert.equal(tab._data[0].length,36);
  assert.equal(cell(2,'신청ID'),OLD_ID,'existing values stay under their own titles after the column is inserted');assert.equal(cell(2,'개인정보동의'),'true');assert.equal(cell(2,'이름'),'김테스');
  const people=env.peopleFolders();assert.equal(people.length,1);assert.equal(people[0].getName(),'김테스_8888');
  assert.deepEqual(env.photosIn(people[0]).map(f=>f.getName()),['김테스_8888_1.jpg','김테스_8888_2.jpg','김테스_8888_3.jpg']);assert.equal(env.photosIn(root).length,0);
@@ -195,11 +195,11 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
  const byProperty=environment({sheets:[surveyTabWithApplication()],bound:false,properties:{SPREADSHEET_ID:'sheet-id'}});
  assert.equal(byProperty.post(application()).ok,true);
  const fresh=environment({sheets:[fakeSheet('시트1',[])]});
- const message=fresh.setup();assert(message.includes('신청 0건'));assert.deepEqual(fresh.sheets.map(s=>s.getName()),['신청','시트1']);assert.equal(fresh.tab('신청')._data[0].length,32);assert.equal(fresh.tab('시트1')._data.length,0);
+ const message=fresh.setup();assert(message.includes('신청 0건'));assert.deepEqual(fresh.sheets.map(s=>s.getName()),['신청','시트1']);assert.equal(fresh.tab('신청')._data[0].length,36);assert.equal(fresh.tab('시트1')._data.length,0);
  // the operator may reorder columns and add their own; values follow the titles and extra columns survive edits
  const arranged=fakeSheet('신청',[['메모','이름','연락처','심사상태']],40,1),custom=environment({sheets:[arranged]}),cell=cellOf(arranged);
  const saved=custom.post(application({이름:' 홍/길동\n '}));assert.equal(saved.ok,true,JSON.stringify(saved));
- assert.deepEqual(arranged._data[0].slice(0,2),['메모','이름']);assert.equal(arranged._data[0].length,33);assert.equal(new Set(arranged._data[0]).size,33);
+ assert.deepEqual(arranged._data[0].slice(0,2),['메모','이름']);assert.equal(arranged._data[0].length,37);assert.equal(new Set(arranged._data[0]).size,37);
  for(const key of ['메모','이름','연락처','심사상태'])assert(arranged._data[0].includes(key));
  assert(arranged._data[0].indexOf('이름')<arranged._data[0].indexOf('연락처')&&arranged._data[0].indexOf('연락처')<arranged._data[0].indexOf('심사상태'),'the operator\'s own order is kept');
  assert.equal(arranged.getMaxRows(),2,'row added to a full grid');assert.equal(cell(2,'메모'),'');assert.equal(cell(2,'연락처'),'01012345678');assert.equal(cell(2,'심사상태'),'pending');
@@ -207,4 +207,47 @@ const linkTo=folder=>'https://drive.google.com/drive/folders/'+folder.getId();
  arranged._data[1][0]='주말 선호';
  assert.equal(custom.post(application({_action:'update',_token:saved.token,이름:'홍길순'})).ok,true);assert.equal(cell(2,'메모'),'주말 선호');assert.equal(cell(2,'이름'),'홍길순');
  console.log('PASS: spreadsheet is found via binding or SPREADSHEET_ID; a new spreadsheet gets the tab; reordered and extra columns are respected; folder names are cleaned; rows grow when the grid is full.');
+}
+
+{ // #35: either introduction choice survives submit, reload, and edit; older clients cannot erase it.
+ const yes='응, 사진 없이 소개해줘',no='아니, 소개하기 전에 나한테 먼저 물어봐줘';
+ for(const choice of [yes,no]){
+  const sheet=fakeSheet('응답',[SURVEY]),env=environment({sheets:[sheet]});
+  const saved=env.post(application({프로필소개동의:choice,프로필소개동의일시:'2026-10-04T12:00:00.000Z',초대코드:'FRIEND35'}));
+  assert(saved.ok);const query=()=>env.post({_action:'status',신청ID:saved.id,_token:saved.token});
+  assert.equal(query().answers.프로필소개동의,choice);assert.equal(query().answers.프로필소개동의일시,'2026-10-04T12:00:00.000Z');assert.equal(query().answers.초대코드,'FRIEND35');
+  assert(env.post(application({_action:'update',_token:saved.token,이름:'수정한 이름'})).ok);
+  assert.equal(query().answers.프로필소개동의,choice,'old clients preserve the explicit choice');
+  const changed=choice===yes?no:yes;
+  assert(env.post(application({_action:'update',_token:saved.token,프로필소개동의:changed,프로필소개동의일시:'2026-10-05T12:00:00.000Z',초대코드:''})).ok);
+  assert.equal(query().answers.프로필소개동의,changed);assert.equal(query().answers.초대코드,'');assert.equal(env.tab('신청')._data.length,2);
+ }
+ const env=environment({sheets:[fakeSheet('응답',[SURVEY])]});
+ assert.equal(env.post(application({프로필소개동의:true})).ok,false);
+ assert.equal(env.post(application({프로필소개동의:'무조건 공개'})).ok,false);
+ assert.equal(env.files.size,0);
+ const legacy=env.post(application());assert(legacy.ok);
+ assert.equal(env.post({_action:'status',신청ID:legacy.id,_token:legacy.token}).answers.프로필소개동의,'','missing legacy consent is never opt-in');
+ console.log('PASS: #35 introduction choices, consent time and invitation code round-trip; edits preserve or explicitly change them; missing/invalid values never grant permission.');
+}
+
+{ // Email is stored, returned and editable; legacy updates preserve it.
+ const env=environment({sheets:[fakeSheet('응답',[SURVEY])]});
+ assert.equal(env.post(application({이메일:'bad@'})).ok,false);
+ const saved=env.post(application({이메일:' hello@example.com '}));assert(saved.ok);
+ const query=()=>env.post({_action:'status',신청ID:saved.id,_token:saved.token});
+ assert.equal(query().answers.이메일,'hello@example.com');
+ assert(env.post(application({_action:'update',_token:saved.token})).ok);
+ assert.equal(query().answers.이메일,'hello@example.com');
+ assert(env.post(application({_action:'update',_token:saved.token,이메일:'new@example.com'})).ok);
+ assert.equal(query().answers.이메일,'new@example.com');
+ console.log('PASS: email validation, trimming, storage, reload, editing and legacy-update preservation.');
+}
+
+{
+ for(const choice of ['응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘']){
+  const env=environment({sheets:[fakeSheet('응답',[SURVEY])]});const saved=env.post(application({프로필소개동의:choice}));assert(saved.ok);
+  assert.equal(env.post({_action:'status',신청ID:saved.id,_token:saved.token}).answers.프로필소개동의,choice);
+ }
+ console.log('PASS: new introduction preferences are accepted and round-trip alongside legacy values.');
 }
