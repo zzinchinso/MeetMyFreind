@@ -47,10 +47,10 @@ const stages=['시작','먼저 하나만!','누구랑 얘기할래요?','반가�
 
 const QUESTIONS={
 4:[['이름','이름이 뭐야?','홍길동'],['출생연도','몇 년생이야?','예: 1997','number'],['키','키는 몇이야?','예: 165','number'],['생활권','평소 어디서 지내? 집이나 회사 근처 정도면 돼.','강남 거주 분당 출퇴근'],['직업','어느 회사에서 무슨 일 해? 회사 이름과 맡고 있는 일을 알려줘.','예: 토스에서 PM으로 일하고 있어'],['학교','학교는 어디 나왔어?','서울대 통계학과'],['MBTI','MBTI도 알아?','예: ENFP','text',true]],
-5:[['취미','쉬는 날엔 보통 뭐 해? 자주 하는 거 아무거나!','예: 러닝, 카페 가기','textarea'],['음주','술은?', ['거의 안 마셔','가끔','자주 마셔']],['흡연','담배는?',['안 피워','가끔','피워']],['종교','종교는?',['없어','기독교','천주교','불교','기타'],'text',true]],
+5:[['취미','쉬는 날엔 보통 뭐 해? 자주 하는 거 아무거나!','예: 러닝, 카페 가기','textarea'],['음주','술은?', ['아예 안 마셔','거의 안 마셔','가끔','자주 마셔']],['흡연','담배는?',['안 피워','가끔','피워']],['종교','종교는?',['없어','기독교','천주교','불교','기타'],'text',true]],
 6:[['자기소개','네 매력이나 장점을 자랑해줘!','예: 잘 웃고 리액션이 좋아','textarea',true]],
-10:[['연봉','연봉은?',['5천 미만','5–7천','7–9천','9천–1억','1억+','비밀'],'text',true],['자산','자산도 알려줄 수 있어?','대략적인 규모만 적어줘','text',true]],
-12:[['같은회사제외','피하고 싶은 회사나 학교가 있어? 알려주면 피해서 소개해볼게.\n\n회사명이나 학교명은 정확히 적어줘.','예: ○○회사, ○○대학교','textarea'],['추천인','추천해준 사람 있어?','이름이나 닉네임','text',true],['초대코드','지인 초대 코드가 있다면 알려줘.','','text',true],['연락처','연락받을 번호도 알려줘.\n\n매칭이 되거나 추가로 확인할 내용이 있을 때 연락할게.','숫자만 입력 (- 없이)','tel'],['이메일','이메일도 알려줄래?\n\n접수가 확인되었다는 안내를 보내는 데 사용할게.','예: hello@example.com','email']]
+10:[['연봉','연봉은?',['5천 미만','5–7천','7–9천','9천–1억','1억+'],'text',true],['자산','자산도 알려줄 수 있어?','대략적인 규모만 적어줘','text',true]],
+12:[['같은회사제외','같은 회사나 학교처럼, 소개받기 부담스러운 곳이 있어?\n\n회사·학교명을 정확히 알려주면 같은 소속은 피해서 소개할게.','예: 토스 PM 직군은 피하고 싶어','textarea'],['추천인','추천해준 사람 있어?','이름이나 닉네임','text',true],['초대코드','지인 초대 코드가 있다면 알려줘.','','text',true],['연락처','연락받을 번호도 알려줘.\n\n매칭이 되거나 추가로 확인할 내용이 있을 때 연락할게.','숫자만 입력 (- 없이)','tel'],['이메일','이메일도 알려줄래?\n\n접수가 확인되었다는 안내를 보내는 데 사용할게.','예: hello@example.com','email']]
 };
 // D-03: the chat opens with a plain date stamp; the automated-question role lives in the ⓘ notice and the host profile.
 function chatDate(){const d=new Date();return d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';}
@@ -126,7 +126,7 @@ function render(){
  }else if(view==='edit'){
  html+='<h2>내 정보 수정</h2><p>바꾸고 싶은 항목을 골라줘. 기존 답변과 사진은 그대로 남아 있어.</p>'+editorReview();
  }else if(view==='profile'){
- html+='<h2>내가 얘기한 내용</h2>'+summary(Object.entries(answers).filter(([k,v])=>v&&!['주선자','개인정보동의','프로필소개동의일시','제외조건','중요조건'].includes(k)).map(([k])=>[k,k==='프로필소개동의'?'소개 진행 방식':k==='프로필소개동의일시'?'소개 방식 선택일시':k==='자기소개'?'내 매력 · 장점':k==='상대조건'?'상대에게 바라는 조건':k]));
+ html+='<h2>내가 얘기한 내용</h2>'+summary(Object.entries(answers).filter(([k,v])=>v&&!['주선자','개인정보동의','제외조건','중요조건','프로필소개동의일시','개인정보동의일시'].includes(k)).map(([k])=>[k,k==='프로필소개동의'?'소개 진행 방식':k==='자기소개'?'내 매력 · 장점':k==='상대조건'?'상대에게 바라는 조건':k]));
  }else{
  html+='<div class="eyebrow">접수 완료</div><h1>접수 완료! 잘 받았어.</h1>';
  html+=bubble(copy(...['편하게 얘기해줘서 고마워. 네 이야기 잘 접수됐어.\n\n1~2일 정도 검토하고, 접수 확인은 이메일로 안내할게.\n\n등록만으로 사진 공개나 만남이 정해지진 않아.\n\n잘 맞을 자리가 생기면 그때 따로 연락할게.','얘기해준 내용 잘 받았어. 접수는 정상적으로 됐어.\n\n1~2일 정도 검토하고 접수 확인은 이메일로 안내할게.\n\n등록만으로 만남이 정해지는 건 아니야.\n\n맞는 자리가 생기면 그때 다시 연락할게.']));
@@ -190,7 +190,7 @@ function mountComposer(){
  }
  backButton.textContent='이전 답변 수정';backButton.className='previous-answer';$('composerMeta').appendChild(backButton);
  // C-11: optional questions get one explicit skip chip, always right above the composer for both choice and typed replies.
- if(currentQuestion()?.[4]){const row=document.createElement('div');row.className='skip-row';const skip=document.createElement('button');skip.id='skipReply';skip.type='button';skip.className='chip skip-reply';skip.textContent='이건 넘어갈게';skip.setAttribute('aria-label','이 질문은 건너뛰기');skip.onclick=()=>{if(busy)return;answers[currentQuestion()[0]]='';next(true);};row.appendChild(skip);$('replyTools').appendChild(row);}
+ if(currentQuestion()?.[4]){const row=document.createElement('div');row.className='skip-row';const skip=document.createElement('button');skip.id='skipReply';skip.type='button';skip.className='chip skip-reply';skip.textContent='이건 넘어갈게';skip.setAttribute('aria-label','이 질문은 건너뛰기');skip.onclick=()=>{if(busy)return;answers[currentQuestion()[0]]='';next(true);};const line=$('replyTools').querySelector('.choices');if(line){skip.classList.add('skip-inline');line.appendChild(skip);}else{row.appendChild(skip);$('replyTools').appendChild(row);}}
  const entry=$('composer').querySelector('input,textarea');
  if(entry){const resize=()=>{if(entry.tagName==='TEXTAREA'){entry.style.height='auto';entry.style.height=Math.min(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--entry-max')),entry.scrollHeight)+'px';}nextButton.disabled=busy||!entry.value.trim();};entry.addEventListener('input',resize);resize();}
 }

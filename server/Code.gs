@@ -19,10 +19,16 @@
  */
 const SCHEMA_VERSION = 2;
 const SHEET_NAME = '신청';
-// What the page sends for one application.
-const FIELDS = ['성별','연령대','유입경로','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','제외조건','중요조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
-// Column order of a newly created tab: what the operator reads first, internal bookkeeping last.
-const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','연령대','키','연락처','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','제외조건','중요조건','연봉','자산','유입경로','추천인','사진','사진폴더','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
+// What is stored from one application: one entry per question the page asks, plus the two consent times.
+const FIELDS = ['성별','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
+// Column order of a newly created tab. Every column is either the answer to one question on the page
+// (사진폴더 is the answer to the photo question) or one of SYSTEM_COLUMNS; tests/contract.cjs enforces that.
+const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','키','연락처','이메일','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','초대코드','사진','사진폴더','프로필소개동의','프로필소개동의일시','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
+// What the service itself records. Everything else in COLUMNS answers a question.
+const SYSTEM_COLUMNS = ['제출시각','심사상태','사진','프로필소개동의일시','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
+// Columns for questions that are no longer asked (연령대 was derived from 출생연도). They are never created;
+// setup() takes them out of an existing tab.
+const RETIRED = ['연령대','유입경로','제외조건','중요조건'];
 // Columns of the earlier satisfaction survey; anything else an older version added to that tab is ours to tidy.
 const SURVEY_HEADERS = ['제출시각','성별','연령대','유입경로','만족도','유용한점','추천의향','좋았던점','개선점'];
 const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입력값을 확인하거나 운영자에게 문의해주세요.';
@@ -76,6 +82,8 @@ function write_(sheet,row,lines){
 // Survey answers and any other rows stay where they are. movedThisRun_ lets setup() report the total,
 // because the move usually happens the moment the tab is created.
 let movedThisRun_=0;
+// The two former partner questions as one answer, the way the page shows it to an applicant who edits.
+function partner_(avoid,important){return [avoid,important].map(v=>String(v==null?'':v).trim()).filter(Boolean).join(' / ');}
 function migrate_(book,target){
  const headers=headers_(target);
  const idColumn=headers.indexOf('신청ID')+1;
@@ -96,14 +104,15 @@ function migrate_(book,target){
    done.push(i+2);
    if(known.includes(id))return;
    known.push(id);
-   lines.push(headers.map(key=>{const at=head.indexOf(key);return at<0?'':text_(line[at]);}));
+   const cell=key=>{const at=head.indexOf(key);return at<0?'':line[at];};
+   lines.push(headers.map(key=>key==='상대조건'&&!String(cell(key)||'').trim()?safe_(partner_(cell('제외조건'),cell('중요조건'))):text_(cell(key))));
   });
   if(lines.length){write_(target,target.getLastRow()+1,lines);moved+=lines.length;}
   done.reverse().forEach(row=>source.deleteRow(row));
   // Remove the column titles the earlier version added there, but only where nothing is left beneath them.
   const rest=source.getLastRow()>1?source.getRange(2,1,source.getLastRow()-1,width).getValues():[];
   head.forEach((title,at)=>{
-   if(!title||SURVEY_HEADERS.includes(title)||!COLUMNS.includes(title))return;
+   if(!title||SURVEY_HEADERS.includes(title)||!(COLUMNS.includes(title)||RETIRED.includes(title)))return;
    if(rest.every(line=>String(line[at]==null?'':line[at])===''))source.getRange(1,at+1).clearContent();
   });
  });
@@ -179,6 +188,29 @@ function organize_(sheet){
  return count;
 }
 
+// Keeps the tab one column per question: earlier two-part partner answers move into 상대조건, then the columns of
+// questions that are no longer asked are removed. 유입경로 cannot be derived from anything else, so if earlier
+// applications still have a value there the column is left for the operator to remove.
+function retire_(sheet){
+ const headers=headers_(sheet);
+ const last=sheet.getLastRow();
+ const at=key=>headers.indexOf(key);
+ const column=key=>last>1&&at(key)>=0?sheet.getRange(2,at(key)+1,last-1,1).getValues().map(line=>String(line[0]==null?'':line[0]).trim()):[];
+ const avoid=column('제외조건'),important=column('중요조건'),current=column('상대조건');
+ current.forEach((value,i)=>{
+  const merged=partner_(avoid[i],important[i]);
+  if(!value&&merged)sheet.getRange(i+2,at('상대조건')+1).setNumberFormat('@').setValue(safe_(merged));
+ });
+ const removed=[],kept=[];
+ RETIRED.forEach(key=>{
+  if(at(key)<0)return;
+  const filled=column(key).filter(Boolean).length;
+  if(key==='유입경로'&&filled){kept.push(key+'(값 '+filled+'건)');return;}
+  sheet.deleteColumn(at(key)+1);headers.splice(at(key),1);removed.push(key);
+ });
+ return {removed,kept};
+}
+
 /** 붙여넣은 뒤 편집기에서 한 번 실행하세요. 권한을 승인받고, '신청' 탭과 비공개 사진 폴더를 준비합니다. */
 function setup(){
  movedThisRun_=0;
@@ -188,7 +220,8 @@ function setup(){
  const moved=movedThisRun_;
  const folder=photoFolder_();
  const organized=organize_(sheet);
- const message='준비 완료 · 시트 "'+sheet.getParent().getName()+'" / 탭 "'+sheet.getName()+'" / 열 '+headers.length+'개 / 신청 '+Math.max(0,sheet.getLastRow()-1)+'건'+(moved?' (이번에 옮긴 신청 '+moved+'건)':'')+' · 사진 폴더 "'+folder.getName()+'" (비공개)'+(organized?' / 신청자별 폴더로 정리한 신청 '+organized+'건':'');
+ const tidy=retire_(sheet);
+ const message='준비 완료 · 시트 "'+sheet.getParent().getName()+'" / 탭 "'+sheet.getName()+'" / 열 '+headers_(sheet).length+'개 / 신청 '+Math.max(0,sheet.getLastRow()-1)+'건'+(moved?' (이번에 옮긴 신청 '+moved+'건)':'')+' · 사진 폴더 "'+folder.getName()+'" (비공개)'+(organized?' / 신청자별 폴더로 정리한 신청 '+organized+'건':'')+(tidy.removed.length?' · 더 이상 묻지 않아 지운 열: '+tidy.removed.join(', '):'')+(tidy.kept.length?' · 이전 값이 있어 남겨둔 열: '+tidy.kept.join(', ')+' (필요 없으면 열을 직접 삭제하세요)':'');
  console.log(message);
  return message;
 }
@@ -229,10 +262,14 @@ function doPost(e){
   if(!['submit','update'].includes(data._action))throw Error('지원하지 않는 요청입니다.');
   if(row&&data._action==='submit')return json_({ok:true,schemaVersion:SCHEMA_VERSION,id,token});
   if(data.프로필소개동의!=null&&!['응, 사진 없이 소개해줘','아니, 소개하기 전에 나한테 먼저 물어봐줘','응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘'].includes(data.프로필소개동의))throw reject_('소개 진행 방식을 확인해주세요.');
-  const mandatory=['성별','주선자','이름','출생연도','키','생활권','직업','학교','취미','음주','흡연','이상형','유입경로','연락처'];
+  // Only what the current page always collects. 유입경로 is no longer asked, so it must not be required here;
+  // tests/contract.cjs drives the real page against this list so the two cannot drift apart again.
+  const mandatory=['성별','주선자','이름','출생연도','키','생활권','직업','학교','취미','음주','흡연','이상형','연락처'];
   const said=k=>String(data[k]||'').trim();
-  // Partner conditions: the current page sends one answer (상대조건); a page cached from before sends the two old ones.
-  if(mandatory.some(k=>!said(k))||!(said('상대조건')||(said('제외조건')&&said('중요조건')))||data.개인정보동의!==true)throw reject_('필수 입력 및 개인정보 동의를 확인해주세요.');
+  // Partner conditions are one answer (상대조건). A page cached from before the merge still sends the two old
+  // answers; they are stored together in the same column.
+  if(!said('상대조건')&&said('제외조건')&&said('중요조건'))data.상대조건=partner_(data.제외조건,data.중요조건);
+  if(mandatory.some(k=>!said(k))||!said('상대조건')||data.개인정보동의!==true)throw reject_('필수 입력 및 개인정보 동의를 확인해주세요.');
   if(!['여성','남성'].includes(data.성별)||!['f','m'].includes(data.주선자))throw reject_('선택값을 확인해주세요.');
   if(data.이메일!=null&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.이메일).trim()))throw reject_('이메일 주소를 확인해주세요.');
   const phone=String(data.연락처).replace(/[-\s]/g,'');
@@ -257,7 +294,7 @@ function doPost(e){
    blobs.forEach((blob,i)=>{const file=folder.createFile(blob);created.push({id:file.getId(),name:String(data.사진[i].name||'사진').slice(0,200)});private_(file);});
    const values=previous.map(text_);
    const put=(k,v)=>{const at=headers.indexOf(k);if(at>=0)values[at]=v;};
-   FIELDS.forEach(k=>{if(['프로필소개동의','프로필소개동의일시','초대코드','이메일','자기소개','상대조건','제외조건','중요조건'].includes(k)&&data[k]==null)return;put(k,safe_(data[k]));});
+   FIELDS.forEach(k=>{if(['프로필소개동의','프로필소개동의일시','초대코드','이메일','자기소개','상대조건'].includes(k)&&data[k]==null)return;put(k,safe_(data[k]));});
    put('연락처',phone);if(data.이메일!=null)put('이메일',safe_(String(data.이메일).trim()));
    if(!row)put('제출시각',stamp_());
    put('신청ID',id);put('사진',JSON.stringify(created));put('사진폴더',folderUrl_(folder));put('심사상태','pending');put('수정일시',new Date().toISOString());put('접수토큰해시',hash_(token));

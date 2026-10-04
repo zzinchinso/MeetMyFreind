@@ -5,7 +5,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const root=path.resolve(__dirname,'..');
 const yes='응, 상대에게 먼저 물어봐도 돼',no='아니, 나한테 먼저 물어봐줘';
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
-const values={이름:'테스트',출생연도:'1997',키:'170',생활권:'강남 거주 분당 출퇴근',직업:'IT 회사 기획',같은회사제외:'○○회사, ○○대학교, 이전 동료 김○○',학교:'고려대',MBTI:'ENFP',취미:'운동과 산책',음주:'가끔',흡연:'안 피워',종교:'없어',자기소개:'잘 웃고 리액션이 좋아',이상형:'강아지상을 선호하고 운동하는 사람이 좋아',상대조건:'비흡연, 연락이 잘 되는 사람',연봉:'비밀',자산:'비밀',유입경로:'친구 추천',추천인:'친구',초대코드:'FRIEND35',연락처:'01012345678',이메일:'hello@example.com'};
+const values={이름:'테스트',출생연도:'1997',키:'170',생활권:'강남 거주 분당 출퇴근',직업:'IT 회사 기획',같은회사제외:'○○회사, ○○대학교, 이전 동료 김○○',학교:'고려대',MBTI:'ENFP',취미:'운동과 산책',음주:'가끔',흡연:'안 피워',종교:'없어',자기소개:'잘 웃고 리액션이 좋아',이상형:'강아지상을 선호하고 운동하는 사람이 좋아',상대조건:'비흡연, 연락이 잘 되는 사람',연봉:'7–9천',자산:'비밀',유입경로:'친구 추천',추천인:'친구',초대코드:'FRIEND35',연락처:'01012345678',이메일:'hello@example.com'};
 const server=http.createServer((req,res)=>{const file=path.join(root,new URL(req.url,'http://localhost').pathname==='/'?'index.html':decodeURIComponent(new URL(req.url,'http://localhost').pathname));if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.readFile(file,(err,data)=>{if(err){res.writeHead(404).end();return;}res.setHeader('Content-Type',({'.js':'text/javascript','.html':'text/html','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'})[path.extname(file)]||'application/octet-stream');res.end(data);});});
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({headless:true,...(process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{channel:'chrome'})});
@@ -17,7 +17,7 @@ try{
   await page.evaluate(host=>{submitted=false;editing=false;view='form';persona=host;step=12;questionIndex=0;answers={};history=[];render();topScreen()},host);
   assert.equal(await page.locator('#replyTools button[data-value]').count(),1);
   assert.equal(await page.locator('#replyTools button[data-value]').innerText(),'상관없어');
-  assert((await page.locator('#activeTurn').innerText()).includes('회사명이나 학교명은 정확히 적어줘.'));
+  assert((await page.locator('#activeTurn').innerText()).includes('회사·학교명을 정확히 알려주면'));
   assert(await page.locator('#next').isDisabled());
   await page.locator('.chat-entry').fill(values.같은회사제외);await page.locator('#next').click();
   assert.equal(await page.evaluate(()=>questionIndex),1);assert.equal(await page.evaluate(()=>answers.같은회사제외),values.같은회사제외);
