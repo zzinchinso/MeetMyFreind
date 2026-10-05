@@ -17,7 +17,7 @@ let submitPhase="";
 let editSnapshot=null;
 let introSlide=0;
 let profilePersona='f';
-const HOSTS={f:{name:'다민',job:'고려대 · IT기업',experience:'소개팅·미팅 주선 100회+',detail:'친구들 연애 상담 단골',quote:'편하게 얘기해줘. 잘 맞는 사람을 함께 찾아볼게.'},m:{name:'정진',job:'서울대 · 연구원',experience:'대기업·전문직 지인 다수',detail:'친구의 친구까지 넓은 인맥',quote:'어떤 사람을 만나고 싶어? 잘 맞을 만한 사람을 생각해볼게.'}};
+const HOSTS={f:{name:'다현',job:'고려대 · IT기업',experience:'소개팅·미팅 주선 100회+',detail:'친구들 연애 상담 단골',quote:'편하게 얘기해줘. 잘 맞는 사람을 함께 찾아볼게.'},m:{name:'보검',job:'서울대 · 연구원',experience:'대기업·전문직 지인 다수',detail:'친구의 친구까지 넓은 인맥',quote:'어떤 사람을 만나고 싶어? 잘 맞을 만한 사람을 생각해볼게.'}};
 // #31: character avatars replace the initial-letter circles everywhere a host is shown.
 function avatar(id){return '<img class="avatar-img" src="assets/host-'+id+'.svg?v=2" alt="">';}
 // #31: the host profile detail screen is out of spec for now. Set to true to let the list avatar open it again.
@@ -41,7 +41,7 @@ function restoreSessions(){try{const saved=JSON.parse(sessionStorage.getItem(SES
 let lastPrompt="";
 let receipt=null;
 try{receipt=JSON.parse(sessionStorage.getItem('chinchinso-receipt'));if(receipt&&!demo){submitted=true;view='complete';}}catch{}
-const name=()=>persona==='f'?'다민':'정진';
+const name=()=>HOSTS[persona].name;
 const copy=(f,m)=>persona==='f'?f:m;
 const stages=['시작','먼저 하나만!','누구랑 얘기할래요?','반가워 👋','너부터 좀 알자','평소엔 뭐 하고 지내?','너는 어떤 사람이야?','그래서 어떤 사람이 좋아?','상대에게 바라는 조건은?','내가 제대로 이해했나 봐봐','조금 현실적인 것도','사진도 몇 장 줘 📸','마지막으로 몇 가지만','소개 진행 방식','개인정보 수집·이용 동의'];
 
@@ -70,6 +70,7 @@ function previous(){if(busy||locked())return;if(returnToEditor){returnToEditor=f
 function field(key,label,placeholder='',type='text',optional=false){return `<label class="field"><span>${label} ${optional?'<small>선택</small>':''}</span>${type==='textarea'?`<textarea aria-label="${esc(label)}" data-key="${key}" enterkeyhint="send" placeholder="${esc(placeholder)}" maxlength="2000">${esc(answers[key])}</textarea>`:`<input aria-label="${esc(label)}" data-key="${key}" type="${type}" enterkeyhint="send" ${type==='number'?'inputmode="numeric"':''} value="${esc(answers[key])}" placeholder="${esc(placeholder)}" maxlength="200">`}</label>`;}
 function choices(key,label,options,optional=false){return `<fieldset aria-label="${esc(label)}"><legend>${label} ${optional?'<small>선택</small>':''}</legend><div class="choices">${options.map(o=>`<button type="button" class="chip" data-key="${key}" data-value="${o}" aria-pressed="${answers[key]===o}">${o}</button>`).join('')}</div></fieldset>`;}
 function bubble(text){lastPrompt=text;return `<div class="incoming"><span class="message-avatar" aria-hidden="true">${avatar(persona)}</span><div class="message-stack">${text.split(/\n\n/).map(part=>'<div class="bubble">'+esc(part)+'</div>').join('')}</div></div>`;}
+function revealIncomingMessages(){const active=$('activeTurn');if(!active||matchMedia('(prefers-reduced-motion: reduce)').matches)return;const bubbles=[...active.querySelectorAll('.incoming:not(.review-message) .bubble')];if(bubbles.length<2)return;bubbles.slice(1).forEach(message=>message.hidden=true);const motion=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion'))||0;let index=0;const reveal=()=>{const message=bubbles[index];if(!message?.isConnected)return;const screen=$('screen'),nearBottom=screen.scrollHeight-screen.scrollTop-screen.clientHeight<=screen.clientHeight/4;message.hidden=false;message.classList.add('message-arrival');if(nearBottom)screen.scrollTop=screen.scrollHeight;index++;if(index<bubbles.length)setTimeout(reveal,motion*3);};reveal();}
 
 
 const REVIEW_FIELDS=[['이름','이름',4,0],['성별','성별',1,0],['출생연도','출생연도',4,1],['키','키',4,2],['생활권','생활권',4,3],['직업','하는 일',4,4],['학교','학교 · 전공',4,5],['MBTI','MBTI',4,6],['취미','쉬는 날 하는 일',5,0],['음주','술',5,1],['흡연','담배',5,2],['종교','종교',5,3],['자기소개','내 매력 · 장점',6,0],['이상형','만나고 싶은 사람',7,0],['상대조건','상대에게 바라는 조건',8,0]];
@@ -143,6 +144,7 @@ function render(){
  if(view==='form'&&step<1&&!(editing&&step===1))$('nav').innerHTML='<div class="start-panel"><button data-start="register" class="start-gender register-cta">찐친소 풀에 등록하기</button></div>';
  if(view==='host'){$('brand').innerHTML='<button id="hostBack" class="icon-button" aria-label="친구 목록으로">‹</button><span>프로필</span>';$('headerNote').textContent='';$('nav').innerHTML='<button class="secondary" id="hostList">목록으로</button><button class="primary" data-persona="'+profilePersona+'">'+esc(HOSTS[profilePersona].name)+'과 대화하기</button>';}
  mountComposer();
+ revealIncomingMessages();
  if(submitPhase){const notice=document.createElement('p');notice.id='submitNotice';notice.className='submit-notice';notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');notice.textContent=submitPhase;$('nav').appendChild(notice);if($('next'))$('next').textContent='저장 중…';}
  bind();
  $('screen').scrollTop=oldScroll;
