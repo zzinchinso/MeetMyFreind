@@ -86,3 +86,9 @@ body[data-view=edit] .summary p{grid-column:2;grid-row:1}
 body[data-view=edit] .summary .review-edit{grid-column:3;grid-row:1;padding:0}
 
 body[data-view=profile] .summary:last-of-type,body[data-view=edit] .summary:last-of-type{border-bottom:0}
+
+/* Issue #15: process link sits beside intro pagination; a compact rounded dialog explains both paths. */
+.process-link{border:0;background:none;color:var(--accent);font-size:var(--body-size);font-weight:var(--bold);line-height:var(--line-height);text-decoration:underline;text-underline-offset:3px;padding:var(--s2) var(--s3);min-height:var(--touch);cursor:pointer}
+.process-dialog{position:fixed;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:min(calc(100% - var(--s6)),var(--phone-width));max-height:calc(100dvh - var(--s6));overflow:hidden;margin:0;padding:var(--s5);border:var(--border) solid var(--line);border-radius:var(--radius);background:var(--bg);color:var(--ink);font-size:var(--small-size);line-height:var(--line-height)}
+.process-dialog::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent)}.process-dialog h2{font-size:var(--body-size);margin:0 var(--s6) var(--s2) 0}.process-dialog h3{font-size:var(--body-size);margin:var(--s3) 0 var(--s1)}.process-dialog p,.process-dialog ol{margin:0}.process-dialog ol{padding-left:1.35em}.process-dialog li+li{margin-top:var(--s1)}.process-dialog small{color:var(--muted);font-size:var(--small-size)}.process-intro{color:var(--muted)}.process-close{position:absolute;top:var(--s2);right:var(--s2);width:var(--touch);height:var(--touch);border:0;border-radius:var(--circle);background:var(--soft);color:var(--ink);font-size:var(--brand-size);cursor:pointer}
+.register-cta{width:100%;min-height:var(--entry-min);padding:var(--s3) var(--s4);background:var(--accent);color:var(--bg);font-size:var(--body-size);cursor:pointer}
