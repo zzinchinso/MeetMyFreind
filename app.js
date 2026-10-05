@@ -29,43 +29,43 @@ let sessions={};
 let history=[];
 function locked(){return submitted&&!editing;}
 function freshSession(id){return {history:[],step:3,questionIndex:0,answers:{...BLANK,주선자:id},photos:[]};}
-// A chat interrupted mid review-edit resumes at the review; one that lost its photos (reload) resumes at the photo step.
-function normalize(s){if(s.history.some(h=>h.step>s.step||(h.step===s.step&&h.index>=s.questionIndex))){s.step=9;s.questionIndex=0;}if(s.step>11&&!s.photos.length){s.step=11;s.questionIndex=0;s.history=s.history.filter(h=>h.step<11);}return s;}
+// A chat interrupted mid review-edit resumes at the review (step 10); one that lost its photos resumes at the photo step.
+function normalize(s){if(s.history.some(h=>h.step>s.step||(h.step===s.step&&h.index>=s.questionIndex))){s.step=10;s.questionIndex=0;}if(s.step>11&&!s.photos.length){s.step=11;s.questionIndex=0;s.history=s.history.filter(h=>h.step<11);}return s;}
 function startChat(id){if(busy||locked())return;persona=id;returnToReview=false;if(editing){answers.주선자=id;history=[];step=3;questionIndex=answers.성별?1:0;view='form';render();topScreen();return;}const s=normalize(sessions[id]||(sessions[id]=freshSession(id)));s.answers.성별=base.성별||s.answers.성별;s.answers.주선자=id;if(s.step===3&&s.answers.성별)s.questionIndex=1;({history,step,questionIndex,answers,photos}=s);view='form';render();topScreen();}
 // The two former partner questions (제외조건, 중요조건) are now one answer (상대조건). Applications and drafts
 // saved before the change keep their text: it is folded into 상대조건 the first time they are loaded.
 function mergePartner(a){if(a&&!String(a.상대조건||'').trim()){const legacy=[a.제외조건,a.중요조건].map(v=>String(v||'').trim()).filter(Boolean);if(legacy.length)a.상대조건=legacy.join(' / ');}return a;}
-function persist(){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({flowVersion:4,성별:base.성별,sessions:Object.fromEntries(Object.entries(sessions).map(([id,s])=>[id,{history:s.history,step:s.step,questionIndex:s.questionIndex,answers:s.answers}]))}));}catch{}}
+function persist(){try{sessionStorage.setItem(SESSION_KEY,JSON.stringify({flowVersion:5,성별:base.성별,sessions:Object.fromEntries(Object.entries(sessions).map(([id,s])=>[id,{history:s.history,step:s.step,questionIndex:s.questionIndex,answers:s.answers}]))}));}catch{}}
 function forgetSessions(){sessions={};try{sessionStorage.removeItem(SESSION_KEY);}catch{}}
-function restoreSessions(){try{const saved=JSON.parse(sessionStorage.getItem(SESSION_KEY));if(!saved||!saved.sessions)return;base.성별=saved.성별||'';for(const [id,s] of Object.entries(saved.sessions)){if(!HOSTS[id]||!s)continue;if(saved.flowVersion!==4&&s.step>=4){s.step=4;s.questionIndex=0;s.history=(s.history||[]).filter(h=>h.step<4);}mergePartner(s.answers);sessions[id]=normalize({history:Array.isArray(s.history)?s.history:[],step:Number(s.step)||3,questionIndex:Number(s.questionIndex)||0,answers:{...BLANK,...(s.answers||{}),주선자:id},photos:[]});}if(Object.keys(sessions).length&&base.성별)step=2;}catch{}}
+function restoreSessions(){try{const saved=JSON.parse(sessionStorage.getItem(SESSION_KEY));if(!saved||!saved.sessions)return;base.성별=saved.성별||'';for(const [id,s] of Object.entries(saved.sessions)){if(!HOSTS[id]||!s)continue;if(saved.flowVersion===4&&s.step>=9&&s.step<11){s.step=9;s.questionIndex=0;s.history=(s.history||[]).filter(h=>h.step<9);}else if(saved.flowVersion===4&&s.step>=11){s.history=(s.history||[]).map(h=>({...h,step:h.step===9?10:h.step===10?9:h.step})).sort((a,b)=>a.step-b.step||a.index-b.index);}else if(saved.flowVersion!==5&&saved.flowVersion!==4&&s.step>=4){s.step=4;s.questionIndex=0;s.history=(s.history||[]).filter(h=>h.step<4);}mergePartner(s.answers);sessions[id]=normalize({history:Array.isArray(s.history)?s.history:[],step:Number(s.step)||3,questionIndex:Number(s.questionIndex)||0,answers:{...BLANK,...(s.answers||{}),주선자:id},photos:[]});}if(Object.keys(sessions).length&&base.성별)step=2;}catch{}}
 let lastPrompt="";
 let receipt=null;
 try{receipt=JSON.parse(sessionStorage.getItem('chinchinso-receipt'));if(receipt&&!demo){submitted=true;view='complete';}}catch{}
 const name=()=>HOSTS[persona].name;
 const copy=(f,m)=>persona==='f'?f:m;
-const stages=['시작','먼저 하나만!','누구랑 얘기할래요?','반가워 👋','너부터 좀 알자','평소엔 뭐 하고 지내?','너는 어떤 사람이야?','그래서 어떤 사람이 좋아?','상대에게 바라는 조건은?','내가 제대로 이해했나 봐봐','조금 현실적인 것도','사진도 몇 장 줘 📸','마지막으로 몇 가지만','소개 진행 방식','개인정보 수집·이용 동의'];
+const stages=['시작','먼저 하나만!','누구랑 얘기할래요?','반가워 👋','너부터 좀 알자','평소엔 뭐 하고 지내?','너는 어떤 사람이야?','그래서 어떤 사람이 좋아?','상대에게 바라는 조건은?','조금 현실적인 것도','내가 제대로 이해했나 봐봐','사진도 몇 장 줘 📸','마지막으로 몇 가지만','소개 진행 방식','개인정보 수집·이용 동의'];
 
 const QUESTIONS={
 3:[['성별','성별이 어떻게 돼?',['여성','남성']]],
 4:[['이름','이름이 뭐야?','홍길동'],['출생연도','몇 년생이야?','예: 1997','number'],['키','키는 몇이야?','예: 165','number'],['생활권','평소 어디서 지내? 집이나 회사 근처 정도면 돼.','강남 거주 분당 출퇴근'],['직업','어느 회사에서 무슨 일 해? 회사 이름과 맡고 있는 일을 알려줘.','예: 토스에서 PM으로 일하고 있어'],['학교','학교는 어디 나왔어?','서울대 통계학과'],['MBTI','MBTI도 알아?','예: ENFP','text',true]],
 5:[['취미','쉬는 날엔 보통 뭐 해? 자주 하는 거 아무거나!','예: 러닝, 카페 가기','textarea'],['음주','술은?', ['아예 안 마셔','거의 안 마셔','가끔','자주 마셔']],['흡연','담배는?',['안 피워','가끔','피워']],['종교','종교는?',['없어','기독교','천주교','불교','기타'],'text',true]],
 6:[['자기소개','네 매력이나 장점을 자랑해줘!','예: 잘 웃고 리액션이 좋아','textarea',true]],
-10:[['연봉','연봉은?',['5천 미만','5–7천','7–9천','9천–1억','1억+'],'text',true],['자산','자산도 알려줄 수 있어?','대략적인 규모만 적어줘','text',true]],
+9:[['연봉','연봉은?',['5천 미만','5–7천','7–9천','9천–1억','1억+'],'text',true],['자산','자산도 알려줄 수 있어?','대략적인 규모만 적어줘','text',true]],
 12:[['같은회사제외','같은 회사나 학교처럼, 소개받기 부담스러운 곳이 있어?\n\n회사·학교명을 정확히 알려주면 같은 소속은 피해서 소개할게.','예: 토스 PM 직군은 피하고 싶어','textarea'],['추천인','추천해준 사람 있어?','이름이나 닉네임','text',true],['초대코드','지인 초대 코드가 있다면 알려줘.','','text',true],['연락처','연락받을 번호도 알려줘.\n\n매칭이 되거나 추가로 확인할 내용이 있을 때 연락할게.','숫자만 입력 (- 없이)','tel'],['이메일','이메일도 알려줄래?\n\n접수가 확인되었다는 안내를 보내는 데 사용할게.','예: hello@example.com','email']]
 };
 // D-03: the chat opens with a plain date stamp; the automated-question role lives in the ⓘ notice and the host profile.
 function chatDate(){const d=new Date();return d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';}
 const INTRO_CHOICES=['응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘'];
 QUESTIONS[13]=[['프로필소개동의','잘 맞을 것 같은 사람이 있으면, 어떻게 진행할까?',INTRO_CHOICES]];
-function currentQuestion(){return step===3&&questionIndex>0?null:QUESTIONS[step]?.[questionIndex];}
+function currentQuestion(){return step===3&&questionIndex>0||step===10?null:QUESTIONS[step]?.[questionIndex];}
 const TURNS=[3,4,5,6,7,8,9,10,11,12,13,14].reduce((n,s)=>n+(QUESTIONS[s]?.length||1),0);
 function turnsDone(s){let n=0;for(let t=3;t<s.step;t++)n+=QUESTIONS[t]?.length||1;return Math.min(TURNS,n+(s.step===3?Math.min(s.questionIndex,1):s.questionIndex));}
 function contactStatus(id,h){return `${h.job} · ${h.experience}`;}
 function contactBadge(id){const s=sessions[id],done=s?turnsDone(s):0;return done?`<span class=contact-progress>진행 중 · ${done}/${TURNS}</span>`:'';}
-function questionUI(){const [key,label,placeholder,type='text',optional=false]=currentQuestion();const context=step===10&&questionIndex===0?bubble(copy('조금 현실적인 것도 물어볼게. 불편하면 넘어가도 돼.\n\n상대에게 공개하진 않고 자리 짤 때만 참고할게.','현실적인 조건도 좀 참고하려고. 싫으면 넘어가도 돼.\n\n상대에게 그대로 공개하진 않아.')):step===6?bubble(copy('이번엔 네 자랑을 들어볼 차례야.\n\n소개할 때 큰 도움이 되거든.','이번엔 네 얘기를 좀 더 듣고 싶어.\n\n소개할 때 참고하려고.')):'';return context+bubble(label)+(Array.isArray(placeholder)?choices(key,label,placeholder,optional):field(key,label,placeholder,type,optional))+(key==='같은회사제외'?choices(key,'피하고 싶은 사람이 없다면',['상관없어']):'');}
-function remember(){const q=currentQuestion();const keys=q?[q[0]]:({7:['이상형'],8:['상대조건'],9:['상대조건','이상형']}[step]||[]);history.push({step,index:questionIndex,prompt:q?q[1]:lastPrompt||stages[step],keys,reply:step===3?'좋아, 얘기해볼게!':step===11?'사진 '+photos.length+'장 선택했어':step===9?'응, 이렇게 기억해줘.':step===14?'개인정보 수집·이용에 동의해요':''});}
+function questionUI(){const [key,label,placeholder,type='text',optional=false]=currentQuestion();const context=step===9&&questionIndex===0?bubble(copy('소개할 때 참고할 수 있게 물어볼게. 불편하면 건너뛰어도 돼.\n\n소개를 진행하면 답해준 연봉과 자산도 상대방에게 전달돼.','조금 현실적인 것도 물어볼게. 괜찮으면 알려줘.\n\n소개를 진행하면 답해준 연봉과 자산도 상대방에게 전달돼.')):step===6?bubble(copy('이번엔 네 자랑을 들어볼 차례야.\n\n소개할 때 큰 도움이 되거든.','이번엔 네 얘기를 좀 더 듣고 싶어.\n\n소개할 때 참고하려고.')):'';return context+bubble(label)+(Array.isArray(placeholder)?choices(key,label,placeholder,optional):field(key,label,placeholder,type,optional))+(key==='같은회사제외'?choices(key,'피하고 싶은 사람이 없다면',['상관없어']):'');}
+function remember(){const q=currentQuestion();const keys=q?[q[0]]:({7:['이상형'],8:['상대조건'],10:['상대조건','이상형','연봉','자산']}[step]||[]);history.push({step,index:questionIndex,prompt:q?q[1]:lastPrompt||stages[step],keys,reply:step===3?'좋아, 얘기해볼게!':step===11?'사진 '+photos.length+'장 선택했어':step===10?'응, 이렇게 기억해줘.':step===14?'개인정보 수집·이용에 동의해요':''});}
 function transcript(){return history.map(h=>'<div class="past-turn">'+bubble(h.prompt)+'<div class="outgoing">'+esc(h.reply||h.keys.map(k=>answers[k]||'이건 넘어갈게').join(' · '))+'</div></div>').join('');}
-function previous(){if(busy||locked())return;if(returnToEditor){returnToEditor=false;view='edit';render();topScreen();return;}if(returnToReview){returnToReview=false;step=9;questionIndex=0;render();topScreen();return;}if(editing){view='edit';render();topScreen();return;}if(QUESTIONS[step]&&questionIndex>0)questionIndex--;else{step=step===2?0:Math.max(0,step-1);questionIndex=QUESTIONS[step]?QUESTIONS[step].length-1:0;}while(history.length&&(history.at(-1).step>step||(history.at(-1).step===step&&history.at(-1).index>=questionIndex)))history.pop();render();topScreen();}
+function previous(){if(busy||locked())return;if(returnToEditor){returnToEditor=false;view='edit';render();topScreen();return;}if(returnToReview){returnToReview=false;step=10;questionIndex=0;render();topScreen();return;}if(editing){view='edit';render();topScreen();return;}if(QUESTIONS[step]&&questionIndex>0)questionIndex--;else{step=step===2?0:Math.max(0,step-1);questionIndex=QUESTIONS[step]?QUESTIONS[step].length-1:0;}while(history.length&&(history.at(-1).step>step||(history.at(-1).step===step&&history.at(-1).index>=questionIndex)))history.pop();render();topScreen();}
 
 function field(key,label,placeholder='',type='text',optional=false){return `<label class="field"><span>${label} ${optional?'<small>선택</small>':''}</span>${type==='textarea'?`<textarea aria-label="${esc(label)}" data-key="${key}" enterkeyhint="send" placeholder="${esc(placeholder)}" maxlength="2000">${esc(answers[key])}</textarea>`:`<input aria-label="${esc(label)}" data-key="${key}" type="${type}" enterkeyhint="send" ${type==='number'?'inputmode="numeric"':''} value="${esc(answers[key])}" placeholder="${esc(placeholder)}" maxlength="200">`}</label>`;}
 function choices(key,label,options,optional=false){return `<fieldset aria-label="${esc(label)}"><legend>${label} ${optional?'<small>선택</small>':''}</legend><div class="choices">${options.map(o=>`<button type="button" class="chip" data-key="${key}" data-value="${o}" aria-pressed="${answers[key]===o}">${o}</button>`).join('')}</div></fieldset>`;}
@@ -73,14 +73,14 @@ function bubble(text){lastPrompt=text;return `<div class="incoming"><span class=
 function revealIncomingMessages(){const active=$('activeTurn');if(!active||matchMedia('(prefers-reduced-motion: reduce)').matches)return;const bubbles=[...active.querySelectorAll('.incoming:not(.review-message) .bubble')];if(bubbles.length<2)return;bubbles.slice(1).forEach(message=>message.hidden=true);const motion=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion'))||0;let index=0;const reveal=()=>{const message=bubbles[index];if(!message?.isConnected)return;const screen=$('screen'),nearBottom=screen.scrollHeight-screen.scrollTop-screen.clientHeight<=screen.clientHeight/4;message.hidden=false;message.classList.add('message-arrival');if(nearBottom)screen.scrollTop=screen.scrollHeight;index++;if(index<bubbles.length)setTimeout(reveal,motion*6);};reveal();}
 
 
-const REVIEW_FIELDS=[['이름','이름',4,0],['성별','성별',1,0],['출생연도','출생연도',4,1],['키','키',4,2],['생활권','생활권',4,3],['직업','하는 일',4,4],['학교','학교 · 전공',4,5],['MBTI','MBTI',4,6],['취미','쉬는 날 하는 일',5,0],['음주','술',5,1],['흡연','담배',5,2],['종교','종교',5,3],['자기소개','내 매력 · 장점',6,0],['이상형','만나고 싶은 사람',7,0],['상대조건','상대에게 바라는 조건',8,0]];
+const REVIEW_FIELDS=[['이름','이름',4,0],['성별','성별',1,0],['출생연도','출생연도',4,1],['키','키',4,2],['생활권','생활권',4,3],['직업','하는 일',4,4],['학교','학교 · 전공',4,5],['MBTI','MBTI',4,6],['취미','쉬는 날 하는 일',5,0],['음주','술',5,1],['흡연','담배',5,2],['종교','종교',5,3],['자기소개','내 매력 · 장점',6,0],['연봉','연봉',9,0],['자산','자산',9,1],['이상형','만나고 싶은 사람',7,0],['상대조건','상대에게 바라는 조건',8,0]];
 const SHAREABLE_KEYS=new Set(['출생연도','키','생활권','직업','학교','MBTI','취미','음주','흡연','종교','자기소개','연봉','자산']);
 function shareClass(key){return SHAREABLE_KEYS.has(key)&&String(answers[key]||'').trim()?' share-highlight':'';}
 function shareBadge(key){return shareClass(key)?'<span class="share-badge">전달</span>':'';}
 function sharingDisclosure(){const consent=answers.프로필소개동의;const title=consent===INTRO_CHOICES[0]?'상대방에게 전달될 내용':consent===INTRO_CHOICES[1]?'소개팅 제안을 승낙할 경우, 상대방에게 전달 될 내용':'상대방에게 전달될 수 있는 내용';const body=consent===INTRO_CHOICES[0]?'파란색 항목이 상대방에게 전달돼요. 나머지 내용은 전달하지 않아요.':consent===INTRO_CHOICES[1]?'파란색 항목은 소개팅 제안을 승낙한 뒤 전달돼요. 나머지 내용은 전달하지 않아요.':'파란색 항목은 소개 과정에서 전달될 수 있어요. 진행 방식을 선택하면 전달 시점을 안내할게요. 나머지 내용은 전달하지 않아요.';return '<aside class="sharing-disclosure"><strong>'+esc(title)+'</strong><p>'+esc(body)+'</p></aside>';}
 function fullReview(){return sharingDisclosure()+'<div class="incoming review-message"><span class="message-avatar" aria-hidden="true">'+avatar(persona)+'</span><div class="message-stack">'+REVIEW_FIELDS.map(([key,label],i)=>'<div class="bubble review-bubble'+shareClass(key)+'"><div class="review-label"><span>'+esc(label)+shareBadge(key)+'</span><button type="button" class="review-edit" data-review="'+i+'" aria-label="'+esc(label)+' 수정">수정</button></div><div class="review-answer">'+esc(answers[key]?String(answers[key])+(key==='키'?'cm':key==='출생연도'?'년생':''):'건너뛰었어')+'</div></div>').join('')+'</div></div>';}
 
-const EDIT_FIELDS=[...REVIEW_FIELDS,['연봉','연봉',10,0],['자산','자산',10,1],['사진','사진',11,0],['같은회사제외','피하고 싶은 회사·학교',12,0],['추천인','추천인',12,1],['초대코드','초대 코드',12,2],['연락처','연락처',12,3],['이메일','이메일',12,4],['프로필소개동의','소개 진행 방식',13,0],['개인정보동의','개인정보 수집·이용',14,0]];
+const EDIT_FIELDS=[...REVIEW_FIELDS,['사진','사진',11,0],['같은회사제외','피하고 싶은 회사·학교',12,0],['추천인','추천인',12,1],['초대코드','초대 코드',12,2],['연락처','연락처',12,3],['이메일','이메일',12,4],['프로필소개동의','소개 진행 방식',13,0],['개인정보동의','개인정보 수집·이용',14,0]];
 function editorReview(){return sharingDisclosure()+EDIT_FIELDS.map(([key,label],i)=>'<div class="summary'+shareClass(key)+'"><b>'+esc(label)+shareBadge(key)+'</b><button type="button" class="review-edit" data-edit-field="'+i+'" aria-label="'+esc(label)+' 수정">수정</button><p>'+esc(key==='사진'?photos.length+'장':key==='개인정보동의'?(answers[key]?'동의함':'미동의'):answers[key]||'아직 알려주지 않았어요')+'</p></div>').join('');}
 function beginEdit(){if(busy||(!demo&&!answers.이름))return;editSnapshot={answers:{...answers},photos:[...photos]};editing=true;returnToReview=false;returnToEditor=false;history=[];view='edit';questionIndex=0;render();topScreen();}
 function summary(keys){return sharingDisclosure()+keys.map(([key,label])=>`<div class="summary${shareClass(key)}"><b>${label}${shareBadge(key)}</b><p>${esc(answers[key]||'아직 알려주지 않았어요')}</p></div>`).join('');}
@@ -118,7 +118,8 @@ function render(){
  case 6:html+=questionUI();break;
  case 7:html+=bubble(copy('이제 네가 만나고 싶은 사람 얘기를 들어볼게.\n\n너는 어떤 사람 만나고 싶어?\n\n조건이어도 느낌이어도 좋아. 편하게 말해줘!','자, 이제 중요한 거.\n\n어떤 사람을 만나고 싶어?\n\n조건이나 성격 모두 좋아. 편하게 얘기해줘.'))+field('이상형','어떤 사람이 좋아?','강아지상을 선호하고 운동하는 사람이 좋아','textarea');break;
  case 8:html+=bubble(copy('반대로 이것도 엄청 중요해.\n\n절대 안 되는 것, 꼭 맞았으면 하는 걸 알려줘.\n\n흡연이나 연락 빈도 같은 거!\n\n이유는 없어도 돼. 솔직할수록 좋아!','좋아하는 것만큼 안 맞는 것도 중요하거든.\n\n절대 안 되는 조건이나 꼭 맞아야 하는 게 있어?\n\n흡연, 연락 빈도 같은 것도 좋아.'))+field('상대조건','상대에게 바라는 조건','예: 비흡연, 연락이 잘 되는 사람','textarea');break;
- case 9:html+=bubble(copy('지금까지 들려준 이야기를 모아봤어.\n\n틀린 게 있으면 고쳐줘!','지금까지 얘기해준 내용 정리해봤어.\n\n쭉 보고 다른 부분 있으면 고쳐줘.'))+fullReview();break;
+ case 9:html+=questionUI();break;
+ case 10:html+=bubble(copy('지금까지 들려준 이야기를 모아봤어.\n\n틀린 게 있으면 고쳐줘!','지금까지 얘기해준 내용 정리해봤어.\n\n쭉 보고 다른 부분 있으면 고쳐줘.'))+fullReview();break;
  case 10:html+=questionUI();break;
  case 11:html+=bubble(copy('사진도 함께 보내줄래?\n\n최근 사진으로 3~5장 골라주면 돼.\n\n얼굴 잘 보이는 거랑 평소 느낌 사진이면 충분해!','최근 사진도 3~5장 보내줄래?\n\n얼굴이 잘 보이는 사진과 평소 모습이면 좋아.'))+'<div class="privacy"><strong>🔒 사진은 동의 없이 공개하지 않아</strong>등록한 사진은 동의 없이 다른 사람에게 공개되지 않아요.<br>잘 맞을 것 같은 사람이 생겨도 먼저 너한테 물어보고, 네가 괜찮다고 했을 때만 보여줄게.</div><label class="field"><span>사진 올리기 · 3~5장</span><input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple></label><small>JPG · PNG · WebP · 3~5장 · 큰 사진은 자동으로 줄여서 보내요</small><div class="photos">'+photos.map((p,i)=>`<div class="photo"><img src="${p.data}" alt="선택한 사진 ${i+1}"><button data-remove="${i}" aria-label="사진 ${i+1} 삭제">×</button></div>`).join('')+'</div>';break;
  case 12:html+=questionUI();break;
@@ -142,9 +143,9 @@ function render(){
  if(view==='form'&&step>=3)html+='</div>';
  html+='<p id="error" class="error" role="alert"></p>';
  $('screen').innerHTML=html;
- $('nav').innerHTML=view==='form'?`${step?'<button class="secondary" id="back">이전</button>':''}<button class="primary" id="next">${busy?'처리 중…':step===0?'얘기해볼게요 ↗':step===9?'응 딱 맞아':step===13?(editing?'수정 내용 저장':'내 얘기 맡겨두기'):step===10?'다음 · 넘어가도 괜찮아':'다음 →'}</button>`:view==='edit'?'<button class="secondary" id="editReturn">수정 취소</button><button class="primary" id="editSave">수정 내용 저장</button>':view==='profile'?'<button class="secondary" id="return">돌아가기</button><button class="primary" id="edit">수정하기</button>':'<button class="primary" id="profile">내 정보 보기</button>';
+ $('nav').innerHTML=view==='form'?`${step?'<button class="secondary" id="back">이전</button>':''}<button class="primary" id="next">${busy?'처리 중…':step===0?'얘기해볼게요 ↗':step===10?'전부 확인했어':step===13?(editing?'수정 내용 저장':'내 얘기 맡겨두기'):step===9?'다음 · 넘어가도 괜찮아':'다음 →'}</button>`:view==='edit'?'<button class="secondary" id="editReturn">수정 취소</button><button class="primary" id="editSave">수정 내용 저장</button>':view==='profile'?'<button class="secondary" id="return">돌아가기</button><button class="primary" id="edit">수정하기</button>':'<button class="primary" id="profile">내 정보 보기</button>';
  if(view==='form'&&step===2){$('brand').innerHTML='<button class="icon-button" id="back" aria-label="소개로 돌아가기">‹</button><span>대화 <small class="contact-count">2</small></span>';$('headerNote').textContent='';$('nav').innerHTML='';}
- if(view==='form'&&step>=3&&step<=12){$('next').textContent=step===3?'좋아, 시작하자 →':step===9?'응 딱 맞아 →':currentQuestion()?.[4]?'보내기 / 건너뛰기 ↑':'보내기 ↑';}
+ if(view==='form'&&step>=3&&step<=12){$('next').textContent=step===3?'좋아, 시작하자 →':step===10?'전부 확인했어 →':currentQuestion()?.[4]?'보내기 / 건너뛰기 ↑':'보내기 ↑';}
  if(view==='form'&&step<1&&!(editing&&step===1))$('nav').innerHTML='<div class="start-panel"><button data-start="register" class="start-gender register-cta">찐친소 풀에 등록하기</button></div>';
  if(view==='host'){$('brand').innerHTML='<button id="hostBack" class="icon-button" aria-label="친구 목록으로">‹</button><span>프로필</span>';$('headerNote').textContent='';$('nav').innerHTML='<button class="secondary" id="hostList">목록으로</button><button class="primary" data-persona="'+profilePersona+'">'+esc(HOSTS[profilePersona].name)+'과 대화하기</button>';}
  mountComposer();
@@ -180,9 +181,9 @@ function mountComposer(){
   const entry=document.createElement('input');entry.className='chat-entry';entry.id='choiceEntry';entry.type='text';entry.readOnly=true;entry.value=answers[currentQuestion()[0]]||'';entry.placeholder='답변을 골라주세요';entry.setAttribute('aria-label','선택한 답변');
   $('composer').appendChild(entry);nextButton.textContent='➤';nextButton.className='send-message';nextButton.setAttribute('aria-label','메시지 보내기');
  }else{
-  const caption=document.createElement('span');caption.className='composer-caption';caption.textContent=options?'위에서 답변을 골라주세요':step===11?(photos.length?photos.length+'장 선택 (3~5장)':'앨범에서 3~5장 골라줘'):step===13?'동의하고 내 얘기 맡기기':step===9?'내 얘기를 확인해주세요':'편하게 시작해볼까요?';
+  const caption=document.createElement('span');caption.className='composer-caption';caption.textContent=options?'위에서 답변을 골라주세요':step===11?(photos.length?photos.length+'장 선택 (3~5장)':'앨범에서 3~5장 골라줘'):step===13?'동의하고 내 얘기 맡기기':step===10?'내 얘기를 확인해주세요':'편하게 시작해볼까요?';
   $('composer').appendChild(caption);
-  nextButton.textContent=step===3?'시작하기':step===13?'등록':step===9?'확인':'↑';nextButton.className='send-message'+([3,9,13].includes(step)?' send-label':'');nextButton.setAttribute('aria-label','답변 보내기');
+  nextButton.textContent=step===3?'시작하기':step===13?'등록':step===10?'확인':'↑';nextButton.className='send-message'+([3,10,13].includes(step)?' send-label':'');nextButton.setAttribute('aria-label','답변 보내기');
  }
  if(step===11){
   const fileLabel=active.querySelector('.field');if(fileLabel)fileLabel.hidden=true;
@@ -193,7 +194,7 @@ function mountComposer(){
  }else if((plain||options)){$('composer').appendChild(nextButton);}
  else{
   $('composer').hidden=true;
-  nextButton.textContent=step===3?'대화 시작하기':step===9?'전부 확인했어':step===14?(returnToEditor?'동의 내용 확인':editing?'수정 내용 저장하기':'동의하고 등록하기'):step===13?(returnToEditor?'선택 내용 확인':'다음'):'선택 확인하기';nextButton.className='action-confirm';nextButton.setAttribute('aria-label',nextButton.textContent);$('actionPanel').appendChild(nextButton);
+  nextButton.textContent=step===3?'대화 시작하기':step===10?'전부 확인했어':step===14?(returnToEditor?'동의 내용 확인':editing?'수정 내용 저장하기':'동의하고 등록하기'):step===13?(returnToEditor?'선택 내용 확인':'다음'):'선택 확인하기';nextButton.className='action-confirm';nextButton.setAttribute('aria-label',nextButton.textContent);$('actionPanel').appendChild(nextButton);
  }
  backButton.textContent='이전 답변 수정';backButton.className='previous-answer';$('composerMeta').appendChild(backButton);
  // C-11: optional questions get one explicit skip chip, always right above the composer for both choice and typed replies.
@@ -205,7 +206,7 @@ function mountComposer(){
 function showIntroSlide(index){introSlide=Math.max(0,Math.min(2,index));const track=$('introSlides');if(track?.scrollTo)track.scrollTo({left:track.clientWidth*introSlide,behavior:'smooth'});updateIntroDots();}
 function updateIntroDots(){document.querySelectorAll('[data-slide]').forEach(el=>el.setAttribute('aria-current',String(Number(el.dataset.slide)===introSlide)));}
 function bind(){
- document.querySelectorAll('[data-start]').forEach(el=>el.onclick=()=>{if(returnToReview){base.성별=answers.성별=el.dataset.start;persist();returnToReview=false;step=9;}else step=2;questionIndex=0;render();topScreen();});
+ document.querySelectorAll('[data-start]').forEach(el=>el.onclick=()=>{if(returnToReview){base.성별=answers.성별=el.dataset.start;persist();returnToReview=false;step=10;}else step=2;questionIndex=0;render();topScreen();});
  if($('processOpen'))$('processOpen').onclick=()=>{$('processDialog').showModal();};
  if($('processClose'))$('processClose').onclick=()=>{$('processDialog').close();};
  if($('processDialog'))$('processDialog').onclick=e=>{if(e.target===$('processDialog'))$('processDialog').close();};
@@ -237,16 +238,16 @@ function bind(){
 }
 // Enter sends in both input and textarea; Shift+Enter inserts a newline; IME composition never sends.
 function sendsOnEnter(e){return e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229;}
-function topScreen(){const screen=$('screen');if(view==='form'&&step>=3){if(step===9||step===13||step===14){const active=$('activeTurn');if(active?.getBoundingClientRect)screen.scrollTop+=active.getBoundingClientRect().top-screen.getBoundingClientRect().top;}else screen.scrollTop=screen.scrollHeight;}else screen.scrollTop=0;}
+function topScreen(){const screen=$('screen');if(view==='form'&&step>=3){if(step===10||step===13||step===14){const active=$('activeTurn');if(active?.getBoundingClientRect)screen.scrollTop+=active.getBoundingClientRect().top-screen.getBoundingClientRect().top;}else screen.scrollTop=screen.scrollHeight;}else screen.scrollTop=0;}
 
-function legacyValidate(){const required={1:['성별'],2:['주선자'],3:['성별'],4:['이름','출생연도','키','생활권','직업','학교'],5:['취미','음주','흡연'],7:['이상형'],8:['상대조건'],9:['이상형','상대조건'],12:['같은회사제외','연락처']};if((required[step]||[]).some(k=>!String(answers[k]||'').trim()))return '아직 답하지 않은 항목을 채워줘.';
+function legacyValidate(){const required={1:['성별'],2:['주선자'],3:['성별'],4:['이름','출생연도','키','생활권','직업','학교'],5:['취미','음주','흡연'],7:['이상형'],8:['상대조건'],10:['이상형','상대조건'],12:['같은회사제외','연락처']};if((required[step]||[]).some(k=>!String(answers[k]||'').trim()))return '아직 답하지 않은 항목을 채워줘.';
  if(step===4){const year=Number(answers.출생연도),height=Number(answers.키);if(!Number.isInteger(year)||year<1900||year>new Date().getFullYear()-19)return '출생연도 4자리를 확인해줘. 출생연도 기준 19세 이상만 신청할 수 있어.';if(height<100||height>250)return '키는 cm 단위로 확인해줘 (100~250).';if(answers.MBTI&&!/^[IE][NS][FT][JP]$/i.test(answers.MBTI.trim()))return 'MBTI 네 글자를 확인하거나 비워줘.';}
  if(step===11){const count=photoCountMessage();if(count)return count;}
  if(step===12&&!/^01[016789]\d{7,8}$/.test(answers.연락처.replace(/[-\s]/g,'')))return '연락받을 휴대폰 번호를 확인해줘.';
  if(step===14&&!answers.개인정보동의)return '개인정보 수집·이용에 동의해야 신청할 수 있어.';return '';}
 function validEmail(value){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value||'').trim());}
 function validate(){if(step===14){if(!answers.개인정보동의)return '개인정보 수집·이용 동의를 확인해줘.';if(!INTRO_CHOICES.includes(answers.프로필소개동의))return '소개 진행 방식을 골라줘.';}if(step===0)return '';if(step===1)return answers.성별?'':'성별을 선택해주세요.';const q=currentQuestion();if(!q)return legacyValidate();const [key,,,type,optional]=q;const value=String(answers[key]||'').trim();if(!optional&&!value)return '답변을 입력하거나 골라줘.';if(key==='출생연도'&&(!/^\d{4}$/.test(value)||+value<1900||+value>new Date().getFullYear()-19))return '출생연도 4자리를 확인해줘. 출생연도 기준 19세 이상만 신청할 수 있어.';if(key==='키'&&(+value<100||+value>250))return '키는 100~250cm 사이로 입력해줘.';if(key==='MBTI'&&value&&!/^[IE][NS][FT][JP]$/i.test(value))return 'MBTI 네 글자를 확인하거나 비워줘.';if(key==='이메일'&&!validEmail(value))return '안내받을 이메일 주소를 확인해줘.';if(key==='연락처'&&!/^01[016789]\d{7,8}$/.test(value.replace(/[-\s]/g,'')))return '휴대폰 번호를 확인해줘.';return '';}
-async function next(allowSkip=false){if(busy)return;const choice=currentQuestion();if(Array.isArray(choice?.[2])&&!answers[choice[0]]&&!(allowSkip===true&&choice[4])){error('답변을 골라줘.');return;}const msg=validate();if(msg){error(msg);return;}if(returnToReview){returnToReview=false;step=9;questionIndex=0;render();topScreen();return;}if(returnToEditor){returnToEditor=false;view='edit';render();topScreen();return;}if(step<2){step=2;questionIndex=0;}else if(step===14){await submit();return;}else{if(step>=3)remember();if(step===3&&questionIndex===0){questionIndex=1;}else if(QUESTIONS[step]&&questionIndex<QUESTIONS[step].length-1)questionIndex++;else{step++;questionIndex=0;}}render();topScreen();}
+async function next(allowSkip=false){if(busy)return;const choice=currentQuestion();if(Array.isArray(choice?.[2])&&!answers[choice[0]]&&!(allowSkip===true&&choice[4])){error('답변을 골라줘.');return;}const msg=validate();if(msg){error(msg);return;}if(returnToReview){returnToReview=false;step=10;questionIndex=0;render();topScreen();return;}if(returnToEditor){returnToEditor=false;view='edit';render();topScreen();return;}if(step<2){step=2;questionIndex=0;}else if(step===14){await submit();return;}else{if(step>=3)remember();if(step===3&&questionIndex===0){questionIndex=1;}else if(QUESTIONS[step]&&questionIndex<QUESTIONS[step].length-1)questionIndex++;else{step++;questionIndex=0;}}render();topScreen();}
 const PHOTO_LIMIT={min:3,max:5,edge:1600,quality:0.85,bytes:4*1024*1024,types:{'image/jpeg':'JPG','image/png':'PNG','image/webp':'WebP'}};
 // Mirrors server/Code.gs: JPG/PNG/WebP, 3–5 photos. No size limit for the user: anything larger than `edge` px or `bytes` is shrunk in the browser before upload (server still caps one decoded photo at 5MB). Type falls back to the extension because some Android pickers leave file.type empty.
 function photoType(file){if(PHOTO_LIMIT.types[file.type])return file.type;const ext=String(file.name||'').toLowerCase().match(/\.(jpe?g|png|webp)$/);return ext?{jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp'}[ext[1]]:'';}
