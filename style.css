@@ -87,6 +87,10 @@ body[data-view=edit] .summary p{grid-column:2;grid-row:1}
 body[data-view=edit] .summary .review-edit{grid-column:3;grid-row:1;padding:0}
 
 body[data-view=profile] .summary:last-of-type,body[data-view=edit] .summary:last-of-type{border-bottom:0}
+.sharing-disclosure{padding:var(--s4);margin:var(--s4) 0;background:var(--soft);border:var(--border) solid var(--line);border-radius:var(--radius)}
+.sharing-disclosure strong{color:var(--ink)}
+.sharing-disclosure p{margin:var(--s2) 0 0;color:var(--muted);font-size:var(--small-size)}
+.share-highlight .review-label,.share-highlight .review-answer,body[data-view=profile] .summary.share-highlight b,body[data-view=profile] .summary.share-highlight p,body[data-view=edit] .summary.share-highlight b,body[data-view=edit] .summary.share-highlight p{color:var(--share-blue)}
 
 /* Issue #15: process link sits beside intro pagination; a compact rounded dialog explains both paths. */
 .process-link{border:0;background:none;color:var(--accent);font-size:var(--body-size);font-weight:var(--bold);line-height:var(--line-height);text-decoration:underline;text-underline-offset:3px;padding:var(--s2) var(--s3);min-height:var(--touch);cursor:pointer}
