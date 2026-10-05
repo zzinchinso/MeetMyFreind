@@ -92,11 +92,12 @@ body[data-view=profile] .summary:last-of-type,body[data-view=edit] .summary:last
 .sharing-disclosure p{margin:var(--s2) 0 0;color:var(--muted);font-size:var(--small-size)}
 .review-label>span:first-child{display:flex;align-items:center;gap:var(--s2)}
 .share-badge{display:inline-flex;align-items:center;min-height:20px;padding:0 var(--s2);border-radius:var(--circle);background:var(--share-accent);color:#fff;font-size:11px;font-weight:var(--bold);line-height:1}
-.sharing-disclosure .share-badge{margin-right:var(--s1);vertical-align:1px}
+.sharing-disclosure .share-badge{margin-right:var(--s2);vertical-align:1px}
 .share-highlight.review-bubble{background:var(--share-soft);border:var(--border) solid var(--share-line);border-left:4px solid var(--share-accent)}
 .share-highlight .review-label,body[data-view=profile] .summary.share-highlight b,body[data-view=edit] .summary.share-highlight b{color:var(--share-accent)}
 .share-highlight .review-answer,body[data-view=profile] .summary.share-highlight p,body[data-view=edit] .summary.share-highlight p{color:var(--ink)}
 body[data-view=profile] .summary.share-highlight,body[data-view=edit] .summary.share-highlight{padding:var(--s3);margin:var(--s2) 0;background:var(--share-soft);border:var(--border) solid var(--share-line);border-left:4px solid var(--share-accent);border-radius:var(--radius)}
+.summary .share-badge{margin-left:var(--s2)}
 
 /* Issue #15: process link sits beside intro pagination; a compact rounded dialog explains both paths. */
 .process-link{border:0;background:none;color:var(--accent);font-size:var(--body-size);font-weight:var(--bold);line-height:var(--line-height);text-decoration:underline;text-underline-offset:3px;padding:var(--s2) var(--s3);min-height:var(--touch);cursor:pointer}

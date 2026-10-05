@@ -76,6 +76,7 @@ function revealIncomingMessages(){const active=$('activeTurn');if(!active)return
 const REVIEW_FIELDS=[['이름','이름',4,0],['성별','성별',1,0],['출생연도','출생연도',4,1],['키','키',4,2],['생활권','생활권',4,3],['직업','하는 일',4,4],['학교','학교 · 전공',4,5],['MBTI','MBTI',4,6],['취미','쉬는 날 하는 일',5,0],['음주','술',5,1],['흡연','담배',5,2],['종교','종교',5,3],['자기소개','내 매력 · 장점',6,0],['연봉','연봉',9,0],['자산','자산',9,1],['이상형','만나고 싶은 사람',7,0],['상대조건','상대에게 바라는 조건',8,0]];
 // Any answered value in these fields is tagged as shared. Optional fields stay untagged when skipped.
 const SHAREABLE_KEYS=new Set(['출생연도','키','생활권','직업','학교','MBTI','취미','음주','흡연','종교','자기소개','연봉','자산']);
+const OPTIONAL_SHARE_KEYS=new Set(['MBTI','종교','연봉','자산']);
 function shareClass(key){return SHAREABLE_KEYS.has(key)&&String(answers[key]||'').trim()?' share-highlight':'';}
 function shareBadge(key){return shareClass(key)?'<span class="share-badge">전달</span>':'';}
 function sharingDisclosure(){const consent=answers.프로필소개동의;const title=consent===INTRO_CHOICES[0]?'상대방에게 전달될 내용':consent===INTRO_CHOICES[1]?'소개팅 제안을 승낙할 경우, 상대방에게 전달 될 내용':'상대방에게 전달될 수 있는 내용';const body=consent===INTRO_CHOICES[0]?'항목은 상대방에게 전달돼요. 나머지 정보는 전달하지 않아요.':consent===INTRO_CHOICES[1]?'항목은 소개팅 제안을 승낙한 뒤 상대방에게 전달돼요. 나머지 정보는 전달하지 않아요.':'항목은 소개를 진행하면 상대방에게 전달돼요. 진행 방식을 선택하면 전달 시점을 안내할게요. 나머지 정보는 전달하지 않아요.';return '<aside class="sharing-disclosure"><strong>'+esc(title)+'</strong><p><span class="share-badge">전달</span> 배지가 달린 '+esc(body)+'</p></aside>';}
@@ -84,7 +85,7 @@ function fullReview(){return sharingDisclosure()+'<div class="incoming review-me
 const EDIT_FIELDS=[...REVIEW_FIELDS,['사진','사진',11,0],['같은회사제외','피하고 싶은 회사·학교',12,0],['추천인','추천인',12,1],['초대코드','초대 코드',12,2],['연락처','연락처',12,3],['이메일','이메일',12,4],['프로필소개동의','소개 진행 방식',13,0],['개인정보동의','개인정보 수집·이용',14,0]];
 function editorReview(){return sharingDisclosure()+EDIT_FIELDS.map(([key,label],i)=>'<div class="summary'+shareClass(key)+'"><b>'+esc(label)+shareBadge(key)+'</b><button type="button" class="review-edit" data-edit-field="'+i+'" aria-label="'+esc(label)+' 수정">수정</button><p>'+esc(key==='사진'?photos.length+'장':key==='개인정보동의'?(answers[key]?'동의함':'미동의'):answers[key]||'아직 알려주지 않았어요')+'</p></div>').join('');}
 function beginEdit(){if(busy||(!demo&&!answers.이름))return;editSnapshot={answers:{...answers},photos:[...photos]};editing=true;returnToReview=false;returnToEditor=false;history=[];view='edit';questionIndex=0;render();topScreen();}
-function summary(keys){return sharingDisclosure()+keys.map(([key,label])=>`<div class="summary${shareClass(key)}"><b>${label}${shareBadge(key)}</b><p>${esc(answers[key]||'아직 알려주지 않았어요')}</p></div>`).join('');}
+function summary(keys){return sharingDisclosure()+keys.map(([key,label])=>`<div class="summary${shareClass(key)}"><b>${label}${shareBadge(key)}</b><p>${esc(answers[key]||(OPTIONAL_SHARE_KEYS.has(key)?'건너뛰었어':'아직 알려주지 않았어요'))}</p></div>`).join('');}
 function error(message){$('error').textContent=message;}
 function render(){
  const oldScroll=$('screen').scrollTop;
@@ -134,7 +135,8 @@ function render(){
  }else if(view==='edit'){
  html+='<h2>내 정보 수정</h2><p>바꾸고 싶은 항목을 골라줘. 기존 답변과 사진은 그대로 남아 있어.</p>'+editorReview();
  }else if(view==='profile'){
- html+='<h2>내가 얘기한 내용</h2>'+summary(Object.entries(answers).filter(([k,v])=>v&&!['주선자','개인정보동의','제외조건','중요조건','프로필소개동의일시','개인정보동의일시'].includes(k)).map(([k])=>[k,k==='프로필소개동의'?'소개 진행 방식':k==='자기소개'?'내 매력 · 장점':k==='상대조건'?'상대에게 바라는 조건':k]));
+ const reviewedKeys=new Set(REVIEW_FIELDS.map(([key])=>key));const profileExtras=Object.entries(answers).filter(([k,v])=>v&&!reviewedKeys.has(k)&&!['주선자','개인정보동의','제외조건','중요조건','프로필소개동의일시','개인정보동의일시'].includes(k)).map(([k])=>[k,k==='프로필소개동의'?'소개 진행 방식':k==='자기소개'?'내 매력 · 장점':k==='상대조건'?'상대에게 바라는 조건':k]);
+ html+='<h2>내가 얘기한 내용</h2>'+summary([['연령대','연령대'],...REVIEW_FIELDS.map(([key,label])=>[key,label]),...profileExtras].filter(([key])=>key!=='연령대'||answers.연령대));
  }else{
  html+='<div class="eyebrow">접수 완료</div><h1>접수 완료! 잘 받았어.</h1>';
  html+=bubble(copy(...['편하게 얘기해줘서 고마워. 네 이야기 잘 접수됐어.\n\n1~2일 정도 검토하고, 접수 확인은 이메일로 안내할게.\n\n등록만으로 사진 공개나 만남이 정해지진 않아.\n\n잘 맞을 자리가 생기면 그때 따로 연락할게.','얘기해준 내용 잘 받았어. 접수는 정상적으로 됐어.\n\n1~2일 정도 검토하고 접수 확인은 이메일로 안내할게.\n\n등록만으로 만남이 정해지는 건 아니야.\n\n맞는 자리가 생기면 그때 다시 연락할게.']));
