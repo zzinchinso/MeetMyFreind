@@ -264,6 +264,7 @@ function doPost(e){
    if(!row||!data._token||hash_(String(data._token))!==read('접수토큰해시'))throw Error('신청 확인 정보가 올바르지 않습니다.');
   }
   if(data._action==='setPassword'){
+   if(String(read('비밀번호해시')||''))throw reject_('이미 신청 비밀번호가 설정되어 있습니다.');
    const password=String(data._password||'');if(password.length<8||password.length>128)throw reject_('비밀번호는 8~128자로 설정해주세요.');
    const salt=Utilities.getUuid()+Utilities.getUuid(),values=previous.map(text_);values[headers.indexOf('비밀번호솔트')]=salt;values[headers.indexOf('비밀번호해시')]=passwordHash_(password,salt);write_(sheet,row,[values]);
    return json_({ok:true,schemaVersion:SCHEMA_VERSION});
@@ -277,7 +278,7 @@ function doPost(e){
    const answers={};FIELDS.forEach(k=>answers[k]=read(k));
    answers.개인정보동의=read('개인정보동의')===true||read('개인정보동의')==='true';
    const photos=JSON.parse(read('사진')||'[]').map(item=>{const blob=DriveApp.getFileById(item.id).getBlob();return {name:item.name,type:blob.getContentType(),data:'data:'+blob.getContentType()+';base64,'+Utilities.base64Encode(blob.getBytes())};});
-   return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:read('심사상태'),answers,photos});
+   return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:read('심사상태'),hasPassword:!!read('비밀번호해시'),answers,photos});
   }
   if(data._action==='update'&&read('심사상태')==='철회')throw reject_('철회한 신청은 수정할 수 없습니다. 새로 신청해주세요.');
   if(!['submit','update'].includes(data._action))throw Error('지원하지 않는 요청입니다.');
