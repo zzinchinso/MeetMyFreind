@@ -36,7 +36,9 @@ const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입
 function json_(data) {return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 function hash_(text){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text));}
 // Store only a salted, iterated HMAC. Passwords never enter a sheet cell or an application response.
-function passwordHash_(password,salt){let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=Utilities.computeHmacSha256Signature(value,salt);return Utilities.base64Encode(value);}
+// Apps Script's computeHmacSha256Signature only accepts (String, String) or (Byte[], Byte[]); mixing a byte array
+// with a string key throws at runtime, so the salt is converted to bytes as well.
+function passwordHash_(password,salt){const key=Utilities.newBlob(String(salt)).getBytes();let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=Utilities.computeHmacSha256Signature(value,key);return Utilities.base64Encode(value);}
 function receiptToken_(id,props){let secret=props.getProperty('RECEIPT_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('RECEIPT_SECRET',secret);}return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id,secret));}
 // Validation messages the applicant can act on are returned as-is; everything else stays generic.
 function reject_(message){const error=Error(message);error.expose=true;return error;}
