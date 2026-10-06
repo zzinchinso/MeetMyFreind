@@ -23,9 +23,9 @@ const SHEET_NAME = '신청';
 const FIELDS = ['성별','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
 // Column order of a newly created tab. Every column is either the answer to one question on the page
 // (사진폴더 is the answer to the photo question) or one of SYSTEM_COLUMNS; tests/contract.cjs enforces that.
-const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','키','연락처','이메일','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','초대코드','사진','사진폴더','프로필소개동의','프로필소개동의일시','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
+const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','키','연락처','이메일','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','초대코드','사진','사진폴더','프로필소개동의','프로필소개동의일시','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시','비밀번호솔트','비밀번호해시'];
 // What the service itself records. Everything else in COLUMNS answers a question.
-const SYSTEM_COLUMNS = ['제출시각','심사상태','사진','프로필소개동의일시','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
+const SYSTEM_COLUMNS = ['제출시각','심사상태','사진','프로필소개동의일시','개인정보동의일시','수정일시','신청ID','접수토큰해시','비밀번호솔트','비밀번호해시'];
 // Columns for questions that are no longer asked (연령대 was derived from 출생연도). They are never created;
 // setup() takes them out of an existing tab.
 const RETIRED = ['연령대','유입경로','제외조건','중요조건'];
@@ -35,6 +35,9 @@ const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입
 
 function json_(data) {return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 function hash_(text){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text));}
+// Store only a salted, iterated HMAC. Passwords never enter a sheet cell or an application response.
+function passwordHash_(password,salt){let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=Utilities.computeHmacSha256Signature(value,salt);return Utilities.base64Encode(value);}
+function receiptToken_(id,props){let secret=props.getProperty('RECEIPT_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('RECEIPT_SECRET',secret);}return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id,secret));}
 // Validation messages the applicant can act on are returned as-is; everything else stays generic.
 function reject_(message){const error=Error(message);error.expose=true;return error;}
 // Leading = + - @ would be read as a formula; the apostrophe keeps the cell as plain text.
@@ -227,18 +230,27 @@ function setup(){
 }
 
 /** 웹 앱 주소를 브라우저로 열었을 때 보이는 상태 확인용 응답입니다. 아무것도 저장하지 않습니다. */
-function doGet(){return json_({ok:true,schemaVersion:SCHEMA_VERSION,service:'신청 접수 서버',sheet:SHEET_NAME,photoFolders:true});}
+function doGet(){return json_({ok:true,schemaVersion:SCHEMA_VERSION,service:'신청 접수 서버',sheet:SHEET_NAME,photoFolders:true,accountAccess:true});}
 
 function doPost(e){
  const lock=LockService.getScriptLock();
  try{
   const data=JSON.parse(e.postData.contents);
-  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true,selfIntroduction:true,partnerCondition:true});
+  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true,selfIntroduction:true,partnerCondition:true,accountAccess:true});
   if(data.website)throw Error('요청을 처리할 수 없습니다.');
   lock.waitLock(30000);
   const props=PropertiesService.getScriptProperties();
   const sheet=sheet_();
   const headers=headers_(sheet);
+  if(data._action==='accountLogin'){
+   const name=String(data.이름||'').trim(),phone=String(data.연락처||'').replace(/[-\s]/g,''),password=String(data._password||'');
+   if(!name||!/^01[016789]\d{7,8}$/.test(phone)||password.length<8)throw reject_('이름, 휴대폰 번호, 비밀번호를 확인해주세요.');
+   const cache=CacheService.getScriptCache(),attemptKey='LOGIN_FAIL_'+hash_(phone);if(Number(cache.get(attemptKey)||0)>=10)throw reject_('로그인 시도가 많아요. 10분 후 다시 시도해주세요.');
+   const last=sheet.getLastRow(),all=last>1?sheet.getRange(2,1,last-1,headers.length).getValues():[],ix=k=>headers.indexOf(k),matches=[];
+   all.forEach((line,i)=>{if(String(line[ix('이름')]||'').trim()!==name||String(line[ix('연락처')]||'').replace(/[-\s]/g,'')!==phone)return;const salt=String(line[ix('비밀번호솔트')]||''),stored=String(line[ix('비밀번호해시')]||'');if(!salt||!stored||passwordHash_(password,salt)!==stored)return;const id=String(line[ix('신청ID')]||'');if(!id)return;matches.push({id,token:receiptToken_(id,props),status:String(line[ix('심사상태')]||'접수'),submittedAt:text_(line[ix('제출시각')]),host:String(line[ix('주선자')]||'')==='f'?'다현':'보검'});});
+   if(!matches.length){cache.put(attemptKey,String(Number(cache.get(attemptKey)||0)+1),600);throw reject_('입력한 정보와 일치하는 신청 내역이 없어요.');}cache.remove(attemptKey);
+   return json_({ok:true,schemaVersion:SCHEMA_VERSION,applications:matches});
+  }
   const id=String(data.신청ID||'');
   if(!/^[a-f0-9-]{36}$/.test(id))throw Error('유효한 신청번호가 필요합니다.');
   const idCol=headers.indexOf('신청ID')+1;
@@ -247,11 +259,19 @@ function doPost(e){
   const previous=row?sheet.getRange(row,1,1,headers.length).getValues()[0]:headers.map(()=> '');
   const read=k=>previous[headers.indexOf(k)];
   // Stable secret makes retries idempotent without storing raw receipt tokens.
-  let secret=props.getProperty('RECEIPT_SECRET');
-  if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('RECEIPT_SECRET',secret);}
-  const token=Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id,secret));
-  if(data._action==='status'||data._action==='update'){
+  const token=receiptToken_(id,props);
+  if(data._action==='status'||data._action==='update'||data._action==='setPassword'||data._action==='withdraw'){
    if(!row||!data._token||hash_(String(data._token))!==read('접수토큰해시'))throw Error('신청 확인 정보가 올바르지 않습니다.');
+  }
+  if(data._action==='setPassword'){
+   const password=String(data._password||'');if(password.length<8||password.length>128)throw reject_('비밀번호는 8~128자로 설정해주세요.');
+   const salt=Utilities.getUuid()+Utilities.getUuid(),values=previous.map(text_);values[headers.indexOf('비밀번호솔트')]=salt;values[headers.indexOf('비밀번호해시')]=passwordHash_(password,salt);write_(sheet,row,[values]);
+   return json_({ok:true,schemaVersion:SCHEMA_VERSION});
+  }
+  if(data._action==='withdraw'){
+   if(read('심사상태')==='철회')return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:'철회'});
+   sheet.getRange(row,headers.indexOf('심사상태')+1).setNumberFormat('@').setValue('철회');sheet.getRange(row,headers.indexOf('수정일시')+1).setNumberFormat('@').setValue(new Date().toISOString());
+   return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:'철회'});
   }
   if(data._action==='status'){
    const answers={};FIELDS.forEach(k=>answers[k]=read(k));
@@ -259,7 +279,11 @@ function doPost(e){
    const photos=JSON.parse(read('사진')||'[]').map(item=>{const blob=DriveApp.getFileById(item.id).getBlob();return {name:item.name,type:blob.getContentType(),data:'data:'+blob.getContentType()+';base64,'+Utilities.base64Encode(blob.getBytes())};});
    return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:read('심사상태'),answers,photos});
   }
+  if(data._action==='update'&&read('심사상태')==='철회')throw reject_('철회한 신청은 수정할 수 없습니다. 새로 신청해주세요.');
   if(!['submit','update'].includes(data._action))throw Error('지원하지 않는 요청입니다.');
+  const password=String(data._password||'');
+  if(!row&&(password.length<8||password.length>128))throw reject_('이력 조회 비밀번호를 8~128자로 설정해주세요.');
+  if(row&&password&& (password.length<8||password.length>128))throw reject_('비밀번호는 8~128자로 설정해주세요.');
   if(row&&data._action==='submit')return json_({ok:true,schemaVersion:SCHEMA_VERSION,id,token});
   if(data.프로필소개동의!=null&&!['응, 사진 없이 소개해줘','아니, 소개하기 전에 나한테 먼저 물어봐줘','응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘'].includes(data.프로필소개동의))throw reject_('소개 진행 방식을 확인해주세요.');
   // Only what the current page always collects. 유입경로 is no longer asked, so it must not be required here;
@@ -274,6 +298,7 @@ function doPost(e){
   if(data.이메일!=null&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.이메일).trim()))throw reject_('이메일 주소를 확인해주세요.');
   const phone=String(data.연락처).replace(/[-\s]/g,'');
   if(!/^01[016789]\d{7,8}$/.test(phone))throw reject_('연락처를 확인해주세요.');
+  if(!row){const last=sheet.getLastRow(),all=last>1?sheet.getRange(2,1,last-1,headers.length).getValues():[],ix=k=>headers.indexOf(k),existing=all.filter(line=>String(line[ix('이름')]||'').trim()===String(data.이름).trim()&&String(line[ix('연락처')]||'').replace(/[-\s]/g,'')===phone&&String(line[ix('비밀번호솔트')]||'')&&String(line[ix('비밀번호해시')]||''));if(existing.length&&!existing.some(line=>passwordHash_(password,String(line[ix('비밀번호솔트')]))===String(line[ix('비밀번호해시')])))throw reject_('같은 이름과 휴대폰 번호로 신청한 이력이 있어요. 기존 비밀번호를 입력해주세요.');}
   if(!Number.isInteger(Number(data.출생연도))||Number(data.출생연도)<1900||Number(data.출생연도)>new Date().getFullYear()-19||Number(data.키)<100||Number(data.키)>250)throw reject_('출생연도와 키를 확인해주세요.');
   FIELDS.forEach(k=>{if(String(data[k]||'').length>2000)throw reject_('입력 가능한 길이를 초과했습니다.');});
   if(!Array.isArray(data.사진)||data.사진.length<3||data.사진.length>5)throw reject_('사진은 3~5장 필요합니다.');
@@ -298,6 +323,7 @@ function doPost(e){
    put('연락처',phone);if(data.이메일!=null)put('이메일',safe_(String(data.이메일).trim()));
    if(!row)put('제출시각',stamp_());
    put('신청ID',id);put('사진',JSON.stringify(created));put('사진폴더',folderUrl_(folder));put('심사상태','pending');put('수정일시',new Date().toISOString());put('접수토큰해시',hash_(token));
+   if(password){const salt=Utilities.getUuid()+Utilities.getUuid();put('비밀번호솔트',salt);put('비밀번호해시',passwordHash_(password,salt));}
    write_(sheet,row||sheet.getLastRow()+1,[values]);
   }catch(err){
    created.forEach(p=>{try{DriveApp.getFileById(p.id).setTrashed(true);}catch{}});
