@@ -23,47 +23,19 @@ const SHEET_NAME = '신청';
 const FIELDS = ['성별','주선자','이름','출생연도','키','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','연락처','개인정보동의','개인정보동의일시','프로필소개동의','프로필소개동의일시','초대코드','이메일'];
 // Column order of a newly created tab. Every column is either the answer to one question on the page
 // (사진폴더 is the answer to the photo question) or one of SYSTEM_COLUMNS; tests/contract.cjs enforces that.
-const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','키','연락처','이메일','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','초대코드','사진','사진폴더','프로필소개동의','프로필소개동의일시','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시','비밀번호솔트','비밀번호해시'];
+const COLUMNS = ['제출시각','심사상태','이름','성별','출생연도','키','연락처','이메일','주선자','생활권','직업','같은회사제외','학교','MBTI','취미','음주','흡연','종교','자기소개','이상형','상대조건','연봉','자산','추천인','초대코드','사진','사진폴더','프로필소개동의','프로필소개동의일시','개인정보동의','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
 // What the service itself records. Everything else in COLUMNS answers a question.
-const SYSTEM_COLUMNS = ['제출시각','심사상태','사진','프로필소개동의일시','개인정보동의일시','수정일시','신청ID','접수토큰해시','비밀번호솔트','비밀번호해시'];
+const SYSTEM_COLUMNS = ['제출시각','심사상태','사진','프로필소개동의일시','개인정보동의일시','수정일시','신청ID','접수토큰해시'];
 // Columns for questions that are no longer asked (연령대 was derived from 출생연도). They are never created;
 // setup() takes them out of an existing tab.
-const RETIRED = ['연령대','유입경로','제외조건','중요조건'];
+// 비밀번호솔트/비밀번호해시 belonged to the applicant password feature, which has been removed.
+const RETIRED = ['연령대','유입경로','제외조건','중요조건','비밀번호솔트','비밀번호해시'];
 // Columns of the earlier satisfaction survey; anything else an older version added to that tab is ours to tidy.
 const SURVEY_HEADERS = ['제출시각','성별','연령대','유입경로','만족도','유용한점','추천의향','좋았던점','개선점'];
 const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입력값을 확인하거나 운영자에게 문의해주세요.';
 
 function json_(data) {return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 function hash_(text){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text));}
-// Store only a salted, iterated HMAC. Passwords never enter a sheet cell or an application response.
-// Password hashing: 10,000 rounds of HMAC-SHA256 keyed with the salt, as before. Each Utilities call is a round
-// trip into Google's services, so 10,000 of them took several seconds per save or login. The same HMAC is
-// computed here in plain JavaScript instead; the output is byte-for-byte identical (tests/password.cjs checks it
-// against Utilities), so passwords saved earlier still match.
-const SHA256_K_=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-const SHA256_IV_=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-function sha256Block_(state,bytes,offset){
- const w=new Array(64);
- for(let i=0;i<16;i++){const j=offset+i*4;w[i]=((bytes[j]&255)<<24)|((bytes[j+1]&255)<<16)|((bytes[j+2]&255)<<8)|(bytes[j+3]&255);}
- for(let i=16;i<64;i++){const a=w[i-15],b=w[i-2];const s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3),s1=((b>>>17)|(b<<15))^((b>>>19)|(b<<13))^(b>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0;}
- let a=state[0],b=state[1],c=state[2],d=state[3],e=state[4],f=state[5],g=state[6],h=state[7];
- for(let i=0;i<64;i++){const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)),ch=(e&f)^(~e&g),t1=(h+S1+ch+SHA256_K_[i]+w[i])|0,S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)),maj=(a&b)^(a&c)^(b&c),t2=(S0+maj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
- return [(state[0]+a)|0,(state[1]+b)|0,(state[2]+c)|0,(state[3]+d)|0,(state[4]+e)|0,(state[5]+f)|0,(state[6]+g)|0,(state[7]+h)|0];
-}
-// Continues a SHA-256 whose state already covers `before` bytes, over `bytes`, and returns the 32-byte digest.
-function sha256Finish_(state,bytes,before){
- const total=before+bytes.length,padded=bytes.slice();padded.push(128);
- while(padded.length%64!==56)padded.push(0);
- const bits=total*8;for(let i=7;i>=0;i--)padded.push(i>=4?Math.floor(bits/Math.pow(2,8*i))&255:(bits>>>(8*i))&255);
- for(let i=0;i<padded.length;i+=64)state=sha256Block_(state,padded,i);
- const out=[];state.forEach(v=>out.push((v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255));return out;
-}
-function hmacSha256Keyed_(key){
- let k=key.map(b=>b&255);if(k.length>64)k=sha256Finish_(SHA256_IV_,k,0);while(k.length<64)k.push(0);
- return {inner:sha256Block_(SHA256_IV_,k.map(b=>b^0x36),0),outer:sha256Block_(SHA256_IV_,k.map(b=>b^0x5c),0)};
-}
-function hmacSha256_(keyed,message){return sha256Finish_(keyed.outer,sha256Finish_(keyed.inner,message.map(b=>b&255),64),64);}
-function passwordHash_(password,salt){const keyed=hmacSha256Keyed_(Utilities.newBlob(String(salt)).getBytes());let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=hmacSha256_(keyed,value);return Utilities.base64Encode(value.map(b=>b>127?b-256:b));}
 function receiptToken_(id,props){let secret=props.getProperty('RECEIPT_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('RECEIPT_SECRET',secret);}return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id,secret));}
 // Validation messages the applicant can act on are returned as-is; everything else stays generic.
 function reject_(message){const error=Error(message);error.expose=true;return error;}
@@ -263,21 +235,12 @@ function doPost(e){
  const lock=LockService.getScriptLock();
  try{
   const data=JSON.parse(e.postData.contents);
-  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true,selfIntroduction:true,partnerCondition:true,accountAccess:true});
+  if(data._action==='capabilities')return json_({ok:true,schemaVersion:SCHEMA_VERSION,profileIntroductionConsent:true,emailCollection:true,selfIntroduction:true,partnerCondition:true,accountAccess:true}); // accountAccess stays for pages cached before passwords were removed
   if(data.website)throw Error('요청을 처리할 수 없습니다.');
   lock.waitLock(30000);
   const props=PropertiesService.getScriptProperties();
   const sheet=sheet_();
   const headers=headers_(sheet);
-  if(data._action==='accountLogin'){
-   const name=String(data.이름||'').trim(),phone=String(data.연락처||'').replace(/[-\s]/g,''),password=String(data._password||'');
-   if(!name||!/^01[016789]\d{7,8}$/.test(phone)||password.length<8)throw reject_('이름, 휴대폰 번호, 비밀번호를 확인해주세요.');
-   const cache=CacheService.getScriptCache(),attemptKey='LOGIN_FAIL_'+hash_(phone);if(Number(cache.get(attemptKey)||0)>=10)throw reject_('로그인 시도가 많아요. 10분 후 다시 시도해주세요.');
-   const last=sheet.getLastRow(),all=last>1?sheet.getRange(2,1,last-1,headers.length).getValues():[],ix=k=>headers.indexOf(k),matches=[];
-   all.forEach((line,i)=>{if(String(line[ix('이름')]||'').trim()!==name||String(line[ix('연락처')]||'').replace(/[-\s]/g,'')!==phone)return;const salt=String(line[ix('비밀번호솔트')]||''),stored=String(line[ix('비밀번호해시')]||'');if(!salt||!stored||passwordHash_(password,salt)!==stored)return;const id=String(line[ix('신청ID')]||'');if(!id)return;matches.push({id,token:receiptToken_(id,props),status:String(line[ix('심사상태')]||'접수'),submittedAt:text_(line[ix('제출시각')]),host:String(line[ix('주선자')]||'')==='f'?'다현':'보검'});});
-   if(!matches.length){cache.put(attemptKey,String(Number(cache.get(attemptKey)||0)+1),600);throw reject_('입력한 정보와 일치하는 신청 내역이 없어요.');}cache.remove(attemptKey);
-   return json_({ok:true,schemaVersion:SCHEMA_VERSION,applications:matches});
-  }
   const id=String(data.신청ID||'');
   if(!/^[a-f0-9-]{36}$/.test(id))throw Error('유효한 신청번호가 필요합니다.');
   const idCol=headers.indexOf('신청ID')+1;
@@ -287,14 +250,8 @@ function doPost(e){
   const read=k=>previous[headers.indexOf(k)];
   // Stable secret makes retries idempotent without storing raw receipt tokens.
   const token=receiptToken_(id,props);
-  if(data._action==='status'||data._action==='update'||data._action==='setPassword'||data._action==='withdraw'){
+  if(data._action==='status'||data._action==='update'||data._action==='withdraw'){
    if(!row||!data._token||hash_(String(data._token))!==read('접수토큰해시'))throw Error('신청 확인 정보가 올바르지 않습니다.');
-  }
-  if(data._action==='setPassword'){
-   if(String(read('비밀번호해시')||''))throw reject_('이미 신청 비밀번호가 설정되어 있습니다.');
-   const password=String(data._password||'');if(password.length<8||password.length>128)throw reject_('비밀번호는 8~128자로 설정해주세요.');
-   const salt=Utilities.getUuid()+Utilities.getUuid(),values=previous.map(text_);values[headers.indexOf('비밀번호솔트')]=salt;values[headers.indexOf('비밀번호해시')]=passwordHash_(password,salt);write_(sheet,row,[values]);
-   return json_({ok:true,schemaVersion:SCHEMA_VERSION});
   }
   if(data._action==='withdraw'){
    if(read('심사상태')==='철회')return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:'철회'});
@@ -305,13 +262,10 @@ function doPost(e){
    const answers={};FIELDS.forEach(k=>answers[k]=read(k));
    answers.개인정보동의=read('개인정보동의')===true||read('개인정보동의')==='true';
    const photos=JSON.parse(read('사진')||'[]').map(item=>{const blob=DriveApp.getFileById(item.id).getBlob();return {name:item.name,type:blob.getContentType(),data:'data:'+blob.getContentType()+';base64,'+Utilities.base64Encode(blob.getBytes())};});
-   return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:read('심사상태'),hasPassword:!!read('비밀번호해시'),answers,photos});
+   return json_({ok:true,schemaVersion:SCHEMA_VERSION,status:read('심사상태'),answers,photos});
   }
   if(data._action==='update'&&read('심사상태')==='철회')throw reject_('철회한 신청은 수정할 수 없습니다. 새로 신청해주세요.');
   if(!['submit','update'].includes(data._action))throw Error('지원하지 않는 요청입니다.');
-  const password=String(data._password||'');
-  if(!row&&(password.length<8||password.length>128))throw reject_('이력 조회 비밀번호를 8~128자로 설정해주세요.');
-  if(row&&password&& (password.length<8||password.length>128))throw reject_('비밀번호는 8~128자로 설정해주세요.');
   if(row&&data._action==='submit')return json_({ok:true,schemaVersion:SCHEMA_VERSION,id,token});
   if(data.프로필소개동의!=null&&!['응, 사진 없이 소개해줘','아니, 소개하기 전에 나한테 먼저 물어봐줘','응, 상대에게 먼저 물어봐도 돼','아니, 나한테 먼저 물어봐줘'].includes(data.프로필소개동의))throw reject_('소개 진행 방식을 확인해주세요.');
   // Only what the current page always collects. 유입경로 is no longer asked, so it must not be required here;
@@ -326,7 +280,6 @@ function doPost(e){
   if(data.이메일!=null&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(data.이메일).trim()))throw reject_('이메일 주소를 확인해주세요.');
   const phone=String(data.연락처).replace(/[-\s]/g,'');
   if(!/^01[016789]\d{7,8}$/.test(phone))throw reject_('연락처를 확인해주세요.');
-  if(!row){const last=sheet.getLastRow(),all=last>1?sheet.getRange(2,1,last-1,headers.length).getValues():[],ix=k=>headers.indexOf(k),existing=all.filter(line=>String(line[ix('이름')]||'').trim()===String(data.이름).trim()&&String(line[ix('연락처')]||'').replace(/[-\s]/g,'')===phone&&String(line[ix('비밀번호솔트')]||'')&&String(line[ix('비밀번호해시')]||''));if(existing.length&&!existing.some(line=>passwordHash_(password,String(line[ix('비밀번호솔트')]))===String(line[ix('비밀번호해시')])))throw reject_('같은 이름과 휴대폰 번호로 신청한 이력이 있어요. 기존 비밀번호를 입력해주세요.');}
   if(!Number.isInteger(Number(data.출생연도))||Number(data.출생연도)<1900||Number(data.출생연도)>new Date().getFullYear()-19||Number(data.키)<100||Number(data.키)>250)throw reject_('출생연도와 키를 확인해주세요.');
   FIELDS.forEach(k=>{if(String(data[k]||'').length>2000)throw reject_('입력 가능한 길이를 초과했습니다.');});
   if(!Array.isArray(data.사진)||data.사진.length<3||data.사진.length>5)throw reject_('사진은 3~5장 필요합니다.');
@@ -351,7 +304,6 @@ function doPost(e){
    put('연락처',phone);if(data.이메일!=null)put('이메일',safe_(String(data.이메일).trim()));
    if(!row)put('제출시각',stamp_());
    put('신청ID',id);put('사진',JSON.stringify(created));put('사진폴더',folderUrl_(folder));put('심사상태','pending');put('수정일시',new Date().toISOString());put('접수토큰해시',hash_(token));
-   if(password){const salt=Utilities.getUuid()+Utilities.getUuid();put('비밀번호솔트',salt);put('비밀번호해시',passwordHash_(password,salt));}
    write_(sheet,row||sheet.getLastRow()+1,[values]);
   }catch(err){
    created.forEach(p=>{try{DriveApp.getFileById(p.id).setTrashed(true);}catch{}});
