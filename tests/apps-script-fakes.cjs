@@ -42,6 +42,7 @@ function fakeSheet(name,rows,maxColumns=26,maxRows=1000){
 
 function environment({sheets,bound=true,properties={}}){
  const props=new Map(Object.entries(properties));
+ const cache=new Map();
  const book={getName:()=>'신청 응답',getSheetByName:n=>sheets.find(s=>s.getName()===n)||null,getSheets:()=>sheets.slice(),
   insertSheet(name,index=sheets.length){assert(!book.getSheetByName(name));const sheet=fakeSheet(name,[]);sheet._bind(book);sheets.splice(index,0,sheet);return sheet;}};
  sheets.forEach(s=>s._bind(book));
@@ -51,16 +52,19 @@ function environment({sheets,bound=true,properties={}}){
    createFile(blob){const fileId='file-'+(++counter);let fileName=blob.getName();const file={_parent:folder,trashed:false,getId:()=>fileId,getName:()=>fileName,setName(next){fileName=next;return file;},getMimeType:()=>blob.getContentType(),moveTo(target){file._parent=target;return file;},setSharing(){},setTrashed(flag){file.trashed=flag;},getBlob:()=>blob};files.set(fileId,file);return file;}};
   folders.set(id,folder);return folder;};
  const bytes=value=>Buffer.isBuffer(value)?value:Array.isArray(value)?Buffer.from(value):Buffer.from(String(value),'utf8');
- const newBlob=(content,type,name)=>({getContentType:()=>type,getBytes:()=>content,getName:()=>name});
+ // Like the real Blob: text content comes back from getBytes() as signed bytes, not as a string.
+ const newBlob=(content,type,name)=>({getContentType:()=>type,getBytes:()=>typeof content==='string'?[...Buffer.from(content,'utf8')].map(b=>b>127?b-256:b):content,getName:()=>name});
  const context=vm.createContext({console:{log(){},warn(){},error(){}},
   ContentService:{MimeType:{JSON:'application/json'},createTextOutput:text=>({text,setMimeType(){return this;}})},
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>props.has(k)?props.get(k):null,setProperty:(k,v)=>{props.set(k,String(v));}})},
   SpreadsheetApp:{getActiveSpreadsheet:()=>bound?book:null,openById:id=>{if(id!=='sheet-id')throw Error('Unexpected spreadsheet id');return book;}},
+  CacheService:{getScriptCache:()=>({get:k=>cache.has(k)?cache.get(k):null,put:(k,v)=>{cache.set(k,String(v));},remove:k=>{cache.delete(k);}})},
   LockService:{getScriptLock:()=>{let held=false;return {waitLock(){held=true;},hasLock:()=>held,releaseLock(){held=false;}};}},
   Session:{getScriptTimeZone:()=>'Asia/Seoul'},
   Utilities:{DigestAlgorithm:{SHA_256:'sha256'},
    computeDigest:(algorithm,text)=>[...crypto.createHash(algorithm).update(String(text),'utf8').digest()],
-   computeHmacSha256Signature:(value,key)=>[...crypto.createHmac('sha256',key).update(value).digest()],
+   // Same overloads as the real service: (String, String) or (Byte[], Byte[]). Anything else throws, like Apps Script does.
+   computeHmacSha256Signature:(value,key)=>{const text=typeof value==='string'&&typeof key==='string',bytes=Array.isArray(value)&&Array.isArray(key);if(!text&&!bytes)throw Error('The parameters ('+(Array.isArray(value)?'number[]':typeof value)+','+(Array.isArray(key)?'number[]':typeof key)+') don\'t match the method signature for Utilities.computeHmacSha256Signature.');const raw=v=>Array.isArray(v)?Buffer.from(v.map(b=>b&255)):v;return [...crypto.createHmac('sha256',raw(key)).update(raw(value)).digest()].map(b=>b>127?b-256:b);},
    base64Encode:value=>bytes(value).toString('base64'),
    base64EncodeWebSafe:value=>bytes(value).toString('base64').replace(/\+/g,'-').replace(/\//g,'_'),
    base64Decode:text=>[...Buffer.from(text,'base64')],
