@@ -12,3 +12,12 @@ const login=password=>env.post({_action:'accountLogin',이름:'홍길동',연락
 const ok=login('password123');assert.equal(ok.ok,true,JSON.stringify(ok));assert.equal(ok.applications.length,1);
 assert.equal(login('wrongpass1').ok,false,'a wrong password is rejected');
 console.log('PASS: an application with a password is saved, the right password finds it, and a wrong one is rejected.');
+// Hashes saved before the pure-JS HMAC must still match: compare with 10,000 rounds of HMAC-SHA256 from Node crypto,
+// which is what Utilities.computeHmacSha256Signature(Byte[], Byte[]) produced.
+{const fs=require('fs'),vm=require('vm'),path=require('path'),crypto=require('crypto');
+ const src=fs.readFileSync(path.join(__dirname,'../server/Code.gs'),'utf8'),signed=b=>[...b].map(x=>x>127?x-256:x);
+ const ctx=vm.createContext({Utilities:{newBlob:t=>({getBytes:()=>signed(Buffer.from(String(t),'utf8'))}),base64Encode:a=>Buffer.from(a.map(x=>x&255)).toString('base64')}});
+ vm.runInContext(src.slice(0,src.indexOf('function receiptToken_')),ctx);const hash=vm.runInContext('passwordHash_',ctx);
+ const reference=(pw,salt)=>{let v=Buffer.from(pw,'utf8');const k=Buffer.from(salt,'utf8');for(let i=0;i<10000;i++)v=crypto.createHmac('sha256',k).update(v).digest();return v.toString('base64');};
+ for(const [pw,salt] of [['password123',crypto.randomUUID()+crypto.randomUUID()],['비밀번호한글','s'.repeat(64)],['x'.repeat(130),'s'.repeat(63)],['abcdefgh','s'.repeat(65)]])assert.equal(hash(pw,salt),reference(pw,salt),'hash changed for salt length '+salt.length);
+ console.log('PASS: password hashes are identical to the earlier Utilities-based ones, so existing passwords keep working.');}
