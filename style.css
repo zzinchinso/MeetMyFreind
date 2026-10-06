@@ -107,6 +107,3 @@ body[data-view=profile] .summary.share-highlight,body[data-view=edit] .summary.s
 
 /* Applicant account access and application history. */
 #accountLogin{width:100%;margin:var(--s3) 0}
-.history-item{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s2)}
-.history-item p{margin:0}
-.history-item button{min-height:var(--touch)}
