@@ -36,9 +36,34 @@ const GENERIC_ERROR = '저장 또는 조회를 완료하지 못했습니다. 입
 function json_(data) {return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 function hash_(text){return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text));}
 // Store only a salted, iterated HMAC. Passwords never enter a sheet cell or an application response.
-// Apps Script's computeHmacSha256Signature only accepts (String, String) or (Byte[], Byte[]); mixing a byte array
-// with a string key throws at runtime, so the salt is converted to bytes as well.
-function passwordHash_(password,salt){const key=Utilities.newBlob(String(salt)).getBytes();let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=Utilities.computeHmacSha256Signature(value,key);return Utilities.base64Encode(value);}
+// Password hashing: 10,000 rounds of HMAC-SHA256 keyed with the salt, as before. Each Utilities call is a round
+// trip into Google's services, so 10,000 of them took several seconds per save or login. The same HMAC is
+// computed here in plain JavaScript instead; the output is byte-for-byte identical (tests/password.cjs checks it
+// against Utilities), so passwords saved earlier still match.
+const SHA256_K_=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+const SHA256_IV_=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+function sha256Block_(state,bytes,offset){
+ const w=new Array(64);
+ for(let i=0;i<16;i++){const j=offset+i*4;w[i]=((bytes[j]&255)<<24)|((bytes[j+1]&255)<<16)|((bytes[j+2]&255)<<8)|(bytes[j+3]&255);}
+ for(let i=16;i<64;i++){const a=w[i-15],b=w[i-2];const s0=((a>>>7)|(a<<25))^((a>>>18)|(a<<14))^(a>>>3),s1=((b>>>17)|(b<<15))^((b>>>19)|(b<<13))^(b>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0;}
+ let a=state[0],b=state[1],c=state[2],d=state[3],e=state[4],f=state[5],g=state[6],h=state[7];
+ for(let i=0;i<64;i++){const S1=((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7)),ch=(e&f)^(~e&g),t1=(h+S1+ch+SHA256_K_[i]+w[i])|0,S0=((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10)),maj=(a&b)^(a&c)^(b&c),t2=(S0+maj)|0;h=g;g=f;f=e;e=(d+t1)|0;d=c;c=b;b=a;a=(t1+t2)|0;}
+ return [(state[0]+a)|0,(state[1]+b)|0,(state[2]+c)|0,(state[3]+d)|0,(state[4]+e)|0,(state[5]+f)|0,(state[6]+g)|0,(state[7]+h)|0];
+}
+// Continues a SHA-256 whose state already covers `before` bytes, over `bytes`, and returns the 32-byte digest.
+function sha256Finish_(state,bytes,before){
+ const total=before+bytes.length,padded=bytes.slice();padded.push(128);
+ while(padded.length%64!==56)padded.push(0);
+ const bits=total*8;for(let i=7;i>=0;i--)padded.push(i>=4?Math.floor(bits/Math.pow(2,8*i))&255:(bits>>>(8*i))&255);
+ for(let i=0;i<padded.length;i+=64)state=sha256Block_(state,padded,i);
+ const out=[];state.forEach(v=>out.push((v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255));return out;
+}
+function hmacSha256Keyed_(key){
+ let k=key.map(b=>b&255);if(k.length>64)k=sha256Finish_(SHA256_IV_,k,0);while(k.length<64)k.push(0);
+ return {inner:sha256Block_(SHA256_IV_,k.map(b=>b^0x36),0),outer:sha256Block_(SHA256_IV_,k.map(b=>b^0x5c),0)};
+}
+function hmacSha256_(keyed,message){return sha256Finish_(keyed.outer,sha256Finish_(keyed.inner,message.map(b=>b&255),64),64);}
+function passwordHash_(password,salt){const keyed=hmacSha256Keyed_(Utilities.newBlob(String(salt)).getBytes());let value=Utilities.newBlob(String(password)).getBytes();for(let i=0;i<10000;i++)value=hmacSha256_(keyed,value);return Utilities.base64Encode(value.map(b=>b>127?b-256:b));}
 function receiptToken_(id,props){let secret=props.getProperty('RECEIPT_SECRET');if(!secret){secret=Utilities.getUuid()+Utilities.getUuid();props.setProperty('RECEIPT_SECRET',secret);}return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(id,secret));}
 // Validation messages the applicant can act on are returned as-is; everything else stays generic.
 function reject_(message){const error=Error(message);error.expose=true;return error;}
