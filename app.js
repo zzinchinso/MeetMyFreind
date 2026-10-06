@@ -153,7 +153,7 @@ function render(){
  if(view==='form'&&step>=3)html+='</div>';
  html+='<p id="error" class="error" role="alert"></p>';
  $('screen').innerHTML=html;
- $('nav').innerHTML=view==='form'?`${step?'<button class="secondary" id="back">이전</button>':''}<button class="primary" id="next">${busy?'처리 중…':step===0?'얘기해볼게요 ↗':step===10?'전부 확인했어':step===13?(editing?'수정 내용 저장':'내 얘기 맡겨두기'):step===9?'다음 · 넘어가도 괜찮아':'다음 →'}</button>`:view==='edit'?'<button class="secondary" id="editReturn">수정 취소</button><button class="primary" id="editSave">수정 내용 저장</button>':view==='profile'?'<button class="secondary" id="return">홈으로</button>'+ (currentApplicationStatus==='철회'?'':'<button class="primary" id="edit">수정하기</button><button class="secondary" id="withdraw">신청 철회</button>'):view==='history'?'<button class="secondary" id="accountLogout">처음으로</button>':view==='account'?'<button class="secondary" id="accountBack">돌아가기</button>':'<button class="primary" id="profile">내 정보 보기</button>';
+ $('nav').innerHTML=view==='form'?`${step?'<button class="secondary" id="back">이전</button>':''}<button class="primary" id="next">${busy?'처리 중…':step===0?'얘기해볼게요 ↗':step===10?'전부 확인했어':step===13?(editing?'수정 내용 저장':'내 얘기 맡겨두기'):step===9?'다음 · 넘어가도 괜찮아':'다음 →'}</button>`:view==='edit'?'<button class="secondary" id="editReturn" '+(busy?'disabled':'')+'>수정 취소</button><button class="primary" id="editSave" '+(busy?'disabled':'')+'>'+(busy?'저장 중…':'수정 내용 저장')+'</button>':view==='profile'?'<button class="secondary" id="return">홈으로</button>'+ (currentApplicationStatus==='철회'?'':'<button class="primary" id="edit">수정하기</button><button class="secondary" id="withdraw">신청 철회</button>'):view==='history'?'<button class="secondary" id="accountLogout">처음으로</button>':view==='account'?'<button class="secondary" id="accountBack">돌아가기</button>':'<button class="primary" id="profile">내 정보 보기</button>';
  if(view==='form'&&step===2){$('brand').innerHTML='<button class="icon-button" id="back" aria-label="소개로 돌아가기">‹</button><span>대화 <small class="contact-count">2</small></span>';$('headerNote').textContent='';$('nav').innerHTML='';}
  if(view==='form'&&step>=3&&step<=12){$('next').textContent=step===3?'좋아, 시작하자 →':step===10?'전부 확인했어 →':currentQuestion()?.[4]?'보내기 / 건너뛰기 ↑':'보내기 ↑';}
  if(view==='form'&&step<1&&!(editing&&step===1))$('nav').innerHTML='<div class="start-panel"><button data-start="register" class="start-gender register-cta">찐친소 풀에 등록하기</button><button type="button" class="process-link" id="accountOpen">신청 내역 조회 및 수정</button></div>';
@@ -254,8 +254,8 @@ function bind(){
  if($('profile')){$('profile').disabled=busy;$('profile').onclick=async()=>{if(busy)return;profileReturnView='complete';if(!demo&&!answers.이름){if(!await loadReceipt())return;}view='profile';render();topScreen();};}
  if($('return'))$('return').onclick=()=>{receipt=null;submitted=false;editing=false;accountApplications=[];accountName='';accountPhone='';accountPassword='';accountPasswordConfirm='';currentApplicationStatus='';hasAccountPassword=false;persona='f';step=0;questionIndex=0;history=[];base.성별='';answers=base;photos=[];forgetSessions();try{sessionStorage.removeItem('chinchinso-receipt');}catch{}view='form';render();topScreen();};
  if($('edit')){$('edit').disabled=busy||(!demo&&!answers.이름);$('edit').onclick=beginEdit;}
- if($('editReturn'))$('editReturn').onclick=()=>{if(editSnapshot){answers={...editSnapshot.answers};photos=[...editSnapshot.photos];editSnapshot=null;}editing=false;view='profile';render();topScreen();};
- if($('editSave'))$('editSave').onclick=()=>{returnToEditor=false;view='form';step=13;questionIndex=0;render();topScreen();};
+ if($('editReturn'))$('editReturn').onclick=()=>{if(busy)return;if(editSnapshot){answers={...editSnapshot.answers};photos=[...editSnapshot.photos];editSnapshot=null;}editing=false;view='profile';render();topScreen();};
+ if($('editSave'))$('editSave').onclick=saveProfileEdits;
  document.querySelectorAll('[data-edit-field]').forEach(el=>el.onclick=()=>{const item=EDIT_FIELDS[Number(el.dataset.editField)];returnToEditor=true;view='form';step=item[2];questionIndex=item[3];render();topScreen();});
 }
 // Enter sends in both input and textarea; Shift+Enter inserts a newline; IME composition never sends.
@@ -287,6 +287,30 @@ answers.연령대=Math.floor((new Date().getFullYear()-Number(answers.출생연�
  if(!demo){const capabilities=await request({_action:'capabilities'});if(!capabilities.emailCollection)throw Error('이메일 저장 기능을 준비 중이야. 잠시 후 다시 시도해줘.');if(!capabilities.profileIntroductionConsent)throw Error('소개 동의 저장 기능을 준비 중이야. 잠시 후 다시 시도해줘.');if(!capabilities.selfIntroduction||!capabilities.partnerCondition)throw Error('새 질문 저장 기능을 준비 중이야. 잠시 후 다시 시도해줘.');if(!capabilities.accountAccess)throw Error('신청 내역 확인 기능을 준비 중이야. 운영자의 서버 업데이트가 필요해.');const result=await request({...answers,신청ID:receipt?.id||submissionId,사진:photos,_password:accountPassword,개인정보동의일시:new Date().toISOString(),_action:editing?'update':'submit',_token:receipt?.token});if(!result.id||!result.token)throw Error('접수번호를 확인하지 못했어. 다시 시도해줘.');receipt={id:result.id,token:result.token};try{sessionStorage.setItem('chinchinso-receipt',JSON.stringify(receipt));}catch{}}
  submitted=true;editing=false;editSnapshot=null;accountPassword='';accountPasswordConfirm='';if(editingApplication){if(!demo)currentApplicationStatus='pending';if(editingFromHistory)accountApplications=accountApplications.map(a=>a.id===receipt?.id?{...a,status:'pending'}:a);view='profile';}else view='complete';forgetSessions();
  }catch(err){busy=false;submitPhase='';render();error(err.name==='AbortError'?'저장 확인이 지연되고 있어. 입력 내용은 그대로야. 잠시 후 다시 눌러줘.':err instanceof TypeError?'연결이 잠시 끊겼어. 입력 내용은 그대로니 다시 시도해줘.':err.message);$('next').textContent='다시 보내기';return;}busy=false;submitPhase='';render();topScreen();}
+async function saveProfileEdits(){
+ if(busy||!editing)return;
+ if(!validEmail(answers.이메일)){error('접수 확인을 받을 이메일 주소를 확인해줘.');return;}
+ answers.이메일=answers.이메일.trim();
+ if(!INTRO_CHOICES.includes(answers.프로필소개동의)||!answers.개인정보동의){error('개인정보 동의와 소개 진행 방식을 확인해줘.');return;}
+ if(!demo&&(!receipt?.id||!receipt?.token)){error('신청 확인 정보가 없어 수정 내용을 저장할 수 없어요. 내 신청 내역을 다시 열어주세요.');return;}
+ busy=true;render();let message='';
+ try{
+  answers.연령대=Math.floor((new Date().getFullYear()-Number(answers.출생연도))/10)*10+'대';
+  answers.프로필소개동의일시=new Date().toISOString();
+  if(!demo){
+   const capabilities=await request({_action:'capabilities'});
+   if(!capabilities.accountAccess)throw Error('신청 내역 수정 기능을 준비 중이야. 운영자의 서버 업데이트가 필요해.');
+   const result=await request({...answers,신청ID:receipt.id,사진:photos,개인정보동의일시:new Date().toISOString(),_action:'update',_token:receipt.token});
+   if(!result.id||!result.token)throw Error('수정 내용 저장 확인을 받지 못했어. 다시 시도해줘.');
+   receipt={id:result.id,token:result.token};
+   try{sessionStorage.setItem('chinchinso-receipt',JSON.stringify(receipt));}catch{}
+   currentApplicationStatus='pending';
+   accountApplications=accountApplications.map(a=>a.id===receipt.id?{...a,status:'pending'}:a);
+  }
+  editing=false;editSnapshot=null;accountPassword='';accountPasswordConfirm='';view='profile';
+ }catch(err){message=err.name==='AbortError'?'저장 확인이 지연되고 있어. 입력 내용은 그대로야. 잠시 후 다시 눌러줘.':err instanceof TypeError?'연결이 잠시 끊겼어. 입력 내용은 그대로니 다시 시도해줘.':err.message||'수정 내용을 저장하지 못했어.';}
+ finally{busy=false;render();topScreen();if(message)error(message);}
+}
 // The legacy status endpoint also returns the authenticated application. Only the application is used.
 async function loadReceipt(){if(demo||busy)return false;busy=true;if($('profile')){$('profile').disabled=true;$('profile').textContent='내 정보 불러오는 중…';}let message='';try{const result=await request({_action:'status',신청ID:receipt.id,_token:receipt.token});if(!result.answers||!Array.isArray(result.photos))throw Error('내 정보를 불러오지 못했어. 잠시 후 내 정보 보기를 다시 눌러줘.');Object.assign(answers,result.answers);mergePartner(answers);persona=answers.주선자||'f';photos=result.photos;currentApplicationStatus=result.status||'접수';hasAccountPassword=!!result.hasPassword;return true;}catch(err){message='내 정보를 불러오지 못했어. 잠시 후 내 정보 보기를 다시 눌러줘.';return false;}finally{busy=false;render();if(message)error(message);}}
 
