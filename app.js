@@ -100,6 +100,7 @@ function render(){
  $('headerNote').textContent='믿을 수 있는 지인의 지인과, 소개팅부터 소규모 모임까지';
  document.body.dataset.complete=String(['complete','profile','edit'].includes(view));
  if(['complete','profile','edit'].includes(view)){$('brand').textContent='찐친소';$('headerNote').textContent='믿을 수 있는 지인의 지인과, 소개팅부터 소규모 모임까지';}
+ if(['account','history'].includes(view))$('headerNote').textContent='';
  const completed=submitted?TURNS:Math.max(0,turnsDone({step,questionIndex}));
  $('progress').style.width=(completed/TURNS*100)+'%';
  $('progress').setAttribute('role','progressbar');$('progress').setAttribute('aria-label','전체 신청 진행률');$('progress').setAttribute('aria-valuemin','0');$('progress').setAttribute('aria-valuemax',String(TURNS));$('progress').setAttribute('aria-valuenow',String(completed));
@@ -131,7 +132,7 @@ function render(){
  case 13:html+=bubble('잘 맞을 것 같은 사람이 있으면, 어떻게 진행할까?\n\n네 취향이나 관심사를 간단히 소개하고,\n상대에게 만나볼 생각이 있는지 먼저 물어봐도 될까?\n\n사진이나 연락처는 별도 허락 없이 전달하지 않을게.')+choices('프로필소개동의','소개 진행 방식',INTRO_CHOICES);break;
  }}
  }else if(view==='account'){
- html+='<h1>신청 내역 조회</h1><p>신청할 때 입력한 이름, 휴대폰 번호, 비밀번호를 입력해줘.</p><label class="field"><span>이름</span><input id="accountName" autocomplete="name" value="'+esc(accountName)+'"></label><label class="field"><span>휴대폰 번호</span><input id="accountPhone" type="tel" autocomplete="tel" value="'+esc(accountPhone)+'"></label><label class="field"><span>비밀번호</span><input id="loginPassword" type="password" autocomplete="current-password"></label><button class="primary" id="accountLogin">내 신청 내역 확인</button><p class="hint">이전 신청은 예전 접수 정보가 남은 브라우저에서 비밀번호를 등록할 수 있어요. 그 정보가 없다면 '+esc(PRIVACY.contact)+'으로 문의해줘.</p>';
+ html+='<h1>신청 내역 조회</h1><p>신청할 때 입력한 이름, 휴대폰 번호, 비밀번호를 입력해줘.</p><label class="field"><span>이름</span><input id="accountName" autocomplete="name" value="'+esc(accountName)+'"></label><label class="field"><span>휴대폰 번호</span><input id="accountPhone" type="tel" autocomplete="tel" value="'+esc(accountPhone)+'"></label><label class="field"><span>비밀번호</span><input id="loginPassword" type="password" autocomplete="current-password"></label><button class="primary" id="accountLogin">내 신청 내역 확인</button><p class="hint">이전 신청 내역 확인이 어려운 경우에는 <a href="mailto:'+esc(PRIVACY.contact)+'">'+esc(PRIVACY.contact)+'</a>으로 문의해주세요.</p>';
  }else if(view==='history'){
  html+='<h1>내 신청 내역</h1><p>신청을 선택하면 내용을 확인하고 수정하거나 철회할 수 있어.</p>'+accountApplications.map((a,i)=>'<article class="summary history-item"><b>'+esc(a.host)+' · '+esc(a.submittedAt||'접수 내역')+'</b><p>상태: '+esc(applicationStatus(a.status))+'</p><button class="secondary" data-open-application="'+i+'">내용 보기</button></article>').join('');
  }else if(view==='host'){
