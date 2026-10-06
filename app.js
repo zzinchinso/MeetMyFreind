@@ -1,6 +1,6 @@
 'use strict';
-// Keep the original Apps Script endpoint and flat Korean-key JSON transport.
-const ENDPOINT = 'https://script.google.com/macros/s/AKfycbyoY955vCmQSYgXuC2JgvWME4uSujfCapjPJFFwNZDsFtXEpRim_vQEdj_HYetex_-6Qw/exec';
+// Public Apps Script web app; keep the flat Korean-key JSON transport.
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbzrS0a36moq0fvsVzztyak14Ly1IwpZFNYeIglAW3fMzGLY5mS9q_IkMVvRxhqiHs6XnA/exec';
 // Fill with the operator's published privacy policy before accepting real applications.
 const PRIVACY = {operator:'찐친소', retention:'1년', contact:'zzinchinso.official@gmail.com'};
 const demo = new URLSearchParams(location.search).get('demo') === '1';
